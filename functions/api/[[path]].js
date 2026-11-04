@@ -667,7 +667,7 @@ export async function onRequest({request,env}) {
   const p=url.searchParams.get("period")||period();
   if(!/^\d{4}-\d{2}$/.test(p))return fail("صيغة الفترة غير صحيحة");
   const from=url.searchParams.get("from")||"",to=url.searchParams.get("to")||"",branch=url.searchParams.get("branch")||"";
-  if((from&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(from))||(to&&!/^\\d{4}-\\d{2}-\\d{2}$/.test(to))||(from&&to&&from>to))return fail("نطاق التاريخ غير صحيح");
+  if((from&&!/^\d{4}-\d{2}-\d{2}$/.test(from))||(to&&!/^\d{4}-\d{2}-\d{2}$/.test(to))||(from&&to&&from>to))return fail("نطاق التاريخ غير صحيح");
   const requests=await env.DB.prepare(
    "SELECT e.id,e.period,e.invoice_number,e.customer_name,e.customer_phone,e.national_id,e.item_code,e.item_name,e.other_reason,e.amount,e.reason,e.details,e.decision_note,e.created_at,b.code branch_code,b.name branch_name,cu.display_name creator_name,du.display_name decision_maker FROM exception_requests e JOIN branches b ON b.id=e.branch_id LEFT JOIN users cu ON cu.id=e.created_by LEFT JOIN users du ON du.id=e.decided_by WHERE (?='' OR date(e.created_at)>=date(?)) AND (?='' OR date(e.created_at)<=date(?)) AND (?='' OR b.code LIKE '%'||?||'%' OR b.name LIKE '%'||?||'%') ORDER BY b.id,e.created_at DESC"
   ).bind(from,from,to,to,branch,branch,branch).all();
