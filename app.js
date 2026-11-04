@@ -512,9 +512,9 @@ function detectPrayerLocation(){
  if(!navigator.geolocation){loadPrayerSchedule();return;}
  navigator.geolocation.getCurrentPosition(async pos=>{
   prayerCoords={lat:pos.coords.latitude,lon:pos.coords.longitude};
-  try{const r=await fetch('https://geocoding-api.open-meteo.com/v1/reverse?latitude='+prayerCoords.lat+'&longitude='+prayerCoords.lon+'&language=ar&format=json');const j=await r.json();prayerCity=j?.results?.[0]?.city||j?.results?.[0]?.name||j?.results?.[0]?.admin1||'موقعك الحالي';}catch{prayerCity='موقعك الحالي';}
+  try{const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=ar&lat='+prayerCoords.lat+'&lon='+prayerCoords.lon);const j=await r.json();prayerCity=j?.address?.city||j?.address?.town||j?.address?.state||'موقعك الحالي';}catch{prayerCity='موقعك الحالي';}
   loadPrayerSchedule();
  },()=>{prayerCity='القاهرة (الموقع الافتراضي)';loadPrayerSchedule();},{enableHighAccuracy:false,timeout:10000,maximumAge:3600000});
 }
 detectPrayerLocation();setInterval(updatePrayerCountdown,1000);setInterval(loadPrayerSchedule,6*60*60*1000);
-refreshHeaderClock();setInterval(refreshHeaderClock,1000);refreshPrayerTimes();setInterval(refreshPrayerTimes,6*60*60*1000);
+refreshHeaderClock();setInterval(refreshHeaderClock,1000);
