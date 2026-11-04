@@ -28,6 +28,7 @@ function message(s,error=false){
 }
 
 function setPage(p){
+ if(state.user?.role!=='system_admin'&&p!=='requests'){p='requests';}
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));
  document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
  if(p==='dashboard'&&state.user?.role==='system_admin')renderDashboard();
@@ -64,6 +65,8 @@ async function startApp(){
  $('appView').classList.remove('hidden');
  $('userInfo').textContent=`${me.user.display_name||me.user.username} • ${roleName(me.user.role)}`;
  $('usersNav').classList.toggle('hidden',me.user.role!=='system_admin');
+ $('nav').querySelector('[data-page=dashboard]')?.classList.toggle('hidden',me.user.role!=='system_admin');
+ $('dashboard').classList.toggle('hidden',me.user.role!=='system_admin');
  $('auditNav').classList.toggle('hidden',me.user.role!=='system_admin');
  $('reportsNav').classList.toggle('hidden',me.user.role!=='system_admin');
  $('settingsNav')?.classList.toggle('hidden',me.user.role!=='system_admin');
@@ -71,6 +74,7 @@ async function startApp(){
  $('newRequestBtn').classList.toggle('hidden',me.user.role==='report_viewer');
  $('transferCreate').classList.toggle('hidden',me.user.role!=='system_admin');
  await refreshAll();
+ if(me.user.role!=='system_admin')setPage('requests');
 }
 
 async function refreshAll(){
