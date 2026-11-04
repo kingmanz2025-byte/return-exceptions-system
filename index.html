@@ -82,7 +82,7 @@
 <nav id="nav">
  <button class="active" data-page="dashboard">الرئيسية</button>
  <button data-page="requests">طلبات الاستثناء</button>
- <button data-page="transfers">تحويل الحصص</button>
+ <button data-page="transfers">تحويل الحصص</button>\n <button data-page="reports" id="reportsNav" class="hidden">التقارير</button>
  <button data-page="users" id="usersNav" class="hidden">المستخدمون</button>
  <button data-page="audit" id="auditNav" class="hidden">سجل التدقيق</button>
 </nav>
@@ -181,6 +181,14 @@
   <h2>سجل التحويلات</h2>
   <div id="transferList" class="cards"></div>
  </div>
+</section>
+
+<section id="reports" class="page">
+ <div class="pagehead"><div><h1>التقارير</h1><p>تقارير الاستثناءات وتحويلات الحصص وأرصدة الفروع</p></div></div>
+ <div class="panel report-filter"><label>فترة التقرير<input id="reportPeriod" type="month"></label><button class="primary" id="loadReportsBtn">عرض التقرير</button></div>
+ <div class="panel"><div class="panelhead"><h2>ملخص أرصدة الفروع</h2><button class="ghost" data-export="balanceTable" data-filename="أرصدة-الفروع">تنزيل Excel</button></div><div class="tablewrap"><table id="balanceTable"><thead><tr><th>كود الفرع</th><th>الفرع</th><th>الحصة الأساسية</th><th>وارد</th><th>صادر</th><th>المستخدم</th><th>المتاح</th></tr></thead><tbody id="balanceReportRows"></tbody></table></div></div>
+ <div class="panel"><div class="panelhead"><h2>تقرير طلبات الاستثناء</h2><button class="ghost" data-export="requestReportTable" data-filename="طلبات-الاستثناء">تنزيل Excel</button></div><div class="tablewrap"><table id="requestReportTable"><thead><tr><th>رقم الطلب</th><th>الفترة</th><th>كود الفرع</th><th>الفرع</th><th>الفاتورة</th><th>العميل</th><th>القيمة</th><th>السبب</th><th>الحالة</th><th>مقدم الطلب</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>ملاحظات القرار</th></tr></thead><tbody id="requestReportRows"></tbody></table></div></div>
+ <div class="panel"><div class="panelhead"><h2>تقرير تحويلات الحصص</h2><button class="ghost" data-export="transferReportTable" data-filename="تحويلات-الحصص">تنزيل Excel</button></div><div class="tablewrap"><table id="transferReportTable"><thead><tr><th>رقم التحويل</th><th>الفترة</th><th>الفرع المانح</th><th>الفرع المستفيد</th><th>الكمية</th><th>الحالة</th><th>سبب التحويل</th><th>مقدم التحويل</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>تاريخ القرار</th></tr></thead><tbody id="transferReportRows"></tbody></table></div></div>
 </section>
 
 <section id="users" class="page">
