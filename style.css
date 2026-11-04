@@ -844,3 +844,130 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
     margin: 12px 14px;
   }
 }
+
+
+/* Responsive layout refinement: phones and small tablets */
+@media (max-width: 760px) {
+  html, body { width: 100%; min-width: 0; overflow-x: hidden; }
+  #appView { width: 100%; overflow-x: clip; }
+  #appView > header {
+    margin: 0;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+  .brand { width: 100%; min-width: 0; justify-content: space-between; }
+  .brand > div { flex: 1; min-width: 0; }
+  .brand strong { font-size: 15px; }
+  .brand small { font-size: 11px; }
+  .brand .raneen-logo-img { width: 88px; max-height: 48px; }
+  .header-clock {
+    width: 100%;
+    min-width: 0;
+    flex: none;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+    padding: 10px;
+  }
+  .clock-main { min-width: 0; flex-direction: row; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+  .clock-main #liveClock { font-size: 19px; }
+  .prayer-panel { min-width: 0; width: 100%; }
+  .prayer-heading { align-items: flex-start; }
+  .prayer-heading button { padding: 7px 9px; font-size: 11px; }
+  .prayer-times { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .header-actions { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+  #userInfo { grid-column: 1 / -1; width: 100%; text-align: center; }
+  .header-actions button { min-width: 0; padding: 9px 8px; font-size: 12px; }
+  .sidebar {
+    position: sticky;
+    top: 0;
+    width: 100%;
+    height: auto;
+    min-width: 0;
+    padding: 7px;
+    border-left: 0;
+    border-bottom: 3px solid var(--gold);
+    z-index: 9;
+  }
+  .sidebar nav {
+    width: 100%;
+    display: flex;
+    flex-direction: row;
+    gap: 6px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 0 3px;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+  .sidebar nav button {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: max-content;
+    white-space: nowrap;
+    padding: 9px 11px;
+    font-size: 12px;
+  }
+  #appView > main { margin: 0; width: 100%; max-width: none; padding: 15px 12px 30px; }
+  #appView > footer { margin: 0; padding-bottom: 24px; }
+  .pagehead { flex-direction: column; align-items: stretch; gap: 10px; margin-bottom: 14px; }
+  .pagehead h1 { font-size: 20px; }
+  .pagehead > button { width: 100%; min-height: 42px; }
+  .metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .metrics article { min-width: 0; padding: 12px 10px; }
+  .metrics span { font-size: 11px; line-height: 1.5; }
+  .metrics b { font-size: 23px; overflow-wrap: anywhere; }
+  .dashboard-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .dash-stat { min-width: 0; padding: 12px; }
+  .dash-stat span, .dash-stat small { font-size: 11px; }
+  .dash-stat b { font-size: 23px; }
+  .dashboard-grid { grid-template-columns: minmax(0, 1fr); gap: 10px; }
+  .dashboard-wide { grid-column: auto; }
+  .dashboard-grid > *, .panel, .item { min-width: 0; }
+  .dash-row { grid-template-columns: minmax(0, 1fr) auto; gap: 7px; }
+  .dash-row strong { grid-column: 1 / -1; }
+  .health-line { grid-template-columns: 90px minmax(0, 1fr); gap: 8px; }
+  .formgrid, .reportgrid, .kpis { grid-template-columns: minmax(0, 1fr); }
+  .formgrid .full { grid-column: 1; }
+  .filters { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .report-filter { display: grid; grid-template-columns: minmax(0, 1fr); align-items: stretch; gap: 10px; }
+  .report-filter label { min-width: 0; width: 100%; }
+  .report-filter > button { width: 100%; }
+  .report-shortcuts { grid-template-columns: minmax(0, 1fr); }
+  .panel { padding: 13px; border-radius: 14px; }
+  .panelhead { flex-direction: row; align-items: center; flex-wrap: wrap; }
+  .tablewrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .modal { padding: 0; place-items: end center; }
+  .modalbox { width: 100%; max-width: 100%; max-height: 94dvh; overflow-y: auto; border-radius: 18px 18px 0 0; padding: 16px 13px calc(20px + env(safe-area-inset-bottom)); }
+  #globalMsg { margin: 10px 12px; }
+}
+
+@media (max-width: 420px) {
+  #appView > header { padding: 10px; }
+  .brand .raneen-logo-img { width: 76px; max-height: 43px; }
+  .brand strong { font-size: 13px; }
+  .brand small { font-size: 10px; }
+  .header-actions { grid-template-columns: 1fr 1fr; }
+  .prayer-times { gap: 4px; }
+  .prayer-time { padding: 6px 3px; }
+  .prayer-time span { font-size: 10px; }
+  .prayer-time b { font-size: 11px; }
+  #appView > main { padding: 12px 9px 25px; }
+  .metrics article { padding: 10px 8px; }
+  .metrics b, .dash-stat b { font-size: 21px; }
+  .dash-stat { padding: 10px; }
+  .item { padding: 11px; }
+  .itemtop { flex-wrap: wrap; }
+  .itemactions { display: grid; grid-template-columns: 1fr 1fr; }
+  .itemactions button { width: 100%; }
+  .modalhead h2 { font-size: 16px; }
+}
+
+@media (max-width: 340px) {
+  .metrics, .dashboard-strip { grid-template-columns: minmax(0, 1fr); }
+  .header-actions { grid-template-columns: minmax(0, 1fr); }
+  .health-line { grid-template-columns: 1fr; }
+}
