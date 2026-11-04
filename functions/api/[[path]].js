@@ -550,11 +550,10 @@ export async function onRequest({request,env}) {
   if(user.role!=="system_admin")
    return fail("صلاحية مدير النظام مطلوبة",403);
 
-  const rows=await env.DB.prepare(
-   "SELECT id,username,display_name,role,is_active,created_at FROM users ORDER BY created_at DESC"
-  ).all();
-
-  return json({ok:true,users:rows.results});
+  await ensureRecovery(env);
+  const rows=await env.DB.prepare("SELECT id,username,display_name,role,is_active,created_at,must_change_password FROM users ORDER BY created_at DESC").all();
+  const recovery=await env.DB.prepare("SELECT id,username,requested_at FROM password_recovery_requests WHERE status='pending' ORDER BY requested_at DESC").all();
+  return json({ok:true,users:rows.results,recoveryRequests:recovery.results});
  }
 
  // إنشاء مستخدم
