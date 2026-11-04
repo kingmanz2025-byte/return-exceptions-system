@@ -811,3 +811,10 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
 .prayer-time span{font-size:10px;color:#e9e2d8}
 .prayer-time b{font-size:12px;color:#fff}
 @media(max-width:760px){.header-clock{min-width:0;gap:10px}.prayer-panel{min-width:100%}.prayer-times{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+.report-shortcuts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.report-shortcuts button{min-height:64px;font-weight:700}
+.report-panel.hidden{display:none!important}
+#branchRanking .health-line{display:grid;grid-template-columns:minmax(160px,1fr) 55px;gap:8px;align-items:center;margin:10px 0}
+#branchRanking .track{grid-column:1/-1}
+@media(max-width:700px){.report-shortcuts{grid-template-columns:1fr}}

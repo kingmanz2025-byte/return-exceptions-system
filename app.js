@@ -65,28 +65,31 @@ async function startApp(){
  $('appView').classList.remove('hidden');
  $('userInfo').textContent=`${me.user.display_name||me.user.username} • ${roleName(me.user.role)}`;
  if(me.user.must_change_password){$('passwordChangeModal')?.classList.remove('hidden');}
- $('usersNav').classList.toggle('hidden',me.user.role!=='system_admin');
- $('nav').querySelector('[data-page=dashboard]')?.classList.toggle('hidden',me.user.role!=='system_admin');
- $('dashboard').classList.toggle('hidden',me.user.role!=='system_admin');
- $('auditNav').classList.toggle('hidden',me.user.role!=='system_admin');
- $('reportsNav').classList.toggle('hidden',me.user.role!=='system_admin');
- $('settingsNav')?.classList.toggle('hidden',me.user.role!=='system_admin');
- $('nav').querySelectorAll('button').forEach(b=>{const adminOnly=['transfers','reports','users','audit','settings'].includes(b.dataset.page);b.classList.toggle('hidden',adminOnly&&me.user.role!=='system_admin');});
- $('newRequestBtn').classList.toggle('hidden',me.user.role==='report_viewer');
- $('transferCreate').classList.toggle('hidden',me.user.role!=='system_admin');
+ const permissions=me.user.permissions||{};const can=(key)=>me.user.role==='system_admin'?(permissions[key]!==false):!!permissions[key];
+ $('usersNav').classList.toggle('hidden',!can('users'));
+ $('nav').querySelector('[data-page=dashboard]')?.classList.toggle('hidden',!can('dashboard'));
+ $('dashboard').classList.toggle('hidden',!can('dashboard'));
+ $('auditNav').classList.toggle('hidden',!can('audit'));
+ $('reportsNav').classList.toggle('hidden',!can('reports'));
+ $('settingsNav')?.classList.toggle('hidden',!can('branches'));
+ $('nav').querySelectorAll('button').forEach(b=>{const key={dashboard:'dashboard',requests:'requests',transfers:'transfers',reports:'reports',users:'users',audit:'audit',settings:'branches'}[b.dataset.page];if(key)b.classList.toggle('hidden',!can(key));});
+ $('newRequestBtn').classList.toggle('hidden',!can('create_request'));
+ if(me.user.role==='branch_user'){document.querySelector('#requests .filters')?.classList.add('hidden');$('requestList')?.classList.add('hidden');$('newRequestBtn2')?.classList.add('hidden');}
+ $('transferCreate').classList.toggle('hidden',!can('create_transfer'));
  await refreshAll();
- if(me.user.role!=='system_admin')setPage('requests');
+ const firstPage=[...document.querySelectorAll('#nav button:not(.hidden)')][0]?.dataset.page||'requests';setPage(firstPage);
+ if(me.user.role==='branch_user'&&can('create_request'))$('requestModal')?.classList.remove('hidden');
 }
 
 async function refreshAll(){
  try{
   const [b,r]=await Promise.all([api('branches'),api('requests')]);
-  const t=state.user.role==='system_admin'?await api('transfers'):{transfers:[]};
+  const t=state.user.permissions?.transfers?await api('transfers'):{transfers:[]};
   state.branches=b.branches||[];
   state.requests=r.requests||[];
   state.transfers=t.transfers||[];
 
-  if(state.user.role==='system_admin'){
+  if(state.user.permissions?.dashboard){
    try{
     const d=await api('dashboard?period='+currentPeriod());
     state.dashboard=d;
@@ -98,17 +101,12 @@ async function refreshAll(){
    try{const tb=await api('transfer-branches');state.transferBranches=tb.branches||[];}catch(e){state.transferBranches=[];message(e.message,true)}
   }else{state.transferBranches=[];}
   fillBranchSelects();
-  if(state.user.role==='system_admin'){renderDashboard();renderTransfers();}else{renderRequests();}
+  if(state.user.role==='system_admin'||state.user.permissions?.dashboard){if(state.user.permissions?.dashboard!==false)renderDashboard();if(state.user.permissions?.transfers!==false)renderTransfers();}if(state.user.role==='branch_user'||state.user.permissions?.requests)renderRequests();
 
-  if(state.user.role==='system_admin'){
-   try{const u=await api('users');state.users=u.users||[]}catch{}
-   renderUsers();loadAdminBranches();renderRecoveryRequests();
-  }
+  if(state.user.permissions?.users){try{const u=await api('users');state.users=u.users||[];state.recoveryRequests=u.recoveryRequests||[]}catch{}renderUsers();renderRecoveryRequests();}
+  if(state.user.permissions?.branches)loadAdminBranches();
 
-  if(state.user.role==='system_admin'){
-   try{const a=await api('audit');state.audit=a.logs||[]}catch{}
-   renderAudit();
-  }
+  if(state.user.permissions?.audit){try{const a=await api('audit');state.audit=a.logs||[]}catch{}renderAudit();}
  }catch(e){message(e.message,true)}
 }
 
@@ -159,17 +157,12 @@ function renderDashboard(){
  const pct=total?Math.round(approved/total*100):0;
  if($('approvalRate'))$('approvalRate').textContent=pct+'%';
  if($('approvalBar'))$('approvalBar').style.width=pct+'%';
+ const usage={};req.forEach(r=>{const k=String(r.branch_id||r.branch_code||'');usage[k]=(usage[k]||0)+1;});
+ const ranked=branches.map(b=>({...b,count:usage[String(b.id)]||usage[String(b.code)]||0})).filter(b=>b.count>0).sort((a,b)=>b.count-a.count).slice(0,8);
+ const maxUsage=ranked[0]?.count||1;
+ if($('branchRanking'))$('branchRanking').innerHTML=ranked.map((b,i)=>{const n=Math.round(b.count/maxUsage*100);return '<div class="health-line"><span>'+(i+1)+'. '+esc(b.name)+' ('+b.count+' طلب)</span><b>'+n+'%</b><div class="track"><i style="width:'+n+'%"></i></div></div>';}).join('')||'<p class="muted">لا توجد فروع لديها طلبات.</p>';
  if($('pendingBar'))$('pendingBar').style.width=(total?Math.round(pending/total*100):0)+'%';
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
- const q=($('branchSearch').value||'').toLowerCase();
- const usedFilter=$('branchUsageSearch')?.value||'';
- if($('branchRanking')){const counts={};req.forEach(r=>{const k=r.branch_id||r.branch_code;counts[k]=(counts[k]||0)+1;});$('branchRanking').innerHTML=[...branches].map(b=>({...b,count:counts[b.id]||counts[b.code]||0})).sort((a,b)=>b.count-a.count).slice(0,8).map((b,i)=>'<div class="dash-row"><b>'+(i+1)+'. '+esc(b.name)+'</b><span>'+b.count+' طلب</span></div>').join('')||'<p>لا توجد بيانات.</p>';}
- $('branchRows').innerHTML=branches
-  .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q)&&(!usedFilter||Number(b.used||0)>=Number(usedFilter)))
-  .map(b=>{
-   const base=Number(b.quota??b.monthly_quota??3),inc=Number(b.transferred_in||0),out=Number(b.transferred_out||0),u=Number(b.used||0),av=base+inc-out-u;
-   return `<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td>${base}</td><td>${inc}</td><td>${out}</td><td>${u}</td><td><b class="${av<0?'negative':''}">${av}</b></td></tr>`;
-  }).join('')||'<tr><td colspan="7">لا توجد فروع متاحة لحسابك</td></tr>';
  if($('recentRequests')){
   $('recentRequests').innerHTML=[...req].sort((x,y)=>String(y.created_at||'').localeCompare(String(x.created_at||''))).slice(0,5).map(r=>`
    <div class="dash-row"><div><b>${esc(r.branch_name||'فرع غير محدد')}</b><small>${esc(r.id)} · ${esc(r.creator_name||'')}</small></div><span class="pill ${esc(r.status)}">${statusName(r.status)}</span><strong>${money(r.amount)} ج.م</strong></div>`
@@ -181,9 +174,9 @@ function renderDashboard(){
    :'<p class="muted">تظهر متابعة التحويلات التفصيلية لمدير النظام ومراقب التقارير.</p>';
  }
 }
-$('branchSearch').oninput=renderDashboard;
 $('fromBranch').addEventListener('change',updateTransferTargets);
 $('loadReportsBtn').onclick=loadReports;
+document.querySelectorAll('[data-report-open]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-report-panel]').forEach(p=>p.classList.toggle('hidden',p.dataset.reportPanel!==b.dataset.reportOpen));loadReports();}));
 document.querySelectorAll('[data-export]').forEach(b=>b.addEventListener('click',()=>exportReport(b.dataset.export,b.dataset.filename)));
 $('refreshBtn').onclick=refreshAll;
 
@@ -206,9 +199,11 @@ function renderRequests(){
     </div>
     <span class="pill ${r.status}">${statusName(r.status)}</span>
    </div>
-   <p><b>السبب:</b> ${esc(r.reason)} • <b>القيمة:</b> ${money(r.amount)} ج.م</p>
+   <p><b>السبب:</b> ${esc(r.reason==='سبب آخر'?(r.other_reason||r.reason):r.reason)} • <b>القيمة:</b> ${money(r.amount)} ج.م</p>
    <p>${esc(r.details)}</p>
    ${r.customer_name?`<p>العميل: ${esc(r.customer_name)}</p>`:''}
+   <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')} • <b>الرقم القومي:</b> ${esc(r.national_id||'—')}</p>
+   <p><b>كود الصنف:</b> ${esc(r.item_code||'—')} • <b>اسم الصنف:</b> ${esc(r.item_name||'—')}</p>
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
    ${r.status==='pending'&&state.user.role==='system_admin'?`
     <div class="itemactions">
@@ -224,6 +219,8 @@ function renderRequests(){
 }
 
 $('requestSearch').oninput=renderRequests;
+$('reason')?.addEventListener('change',()=>{const show=$('reason').value==='سبب آخر';$('otherReasonWrap')?.classList.toggle('hidden',!show);$('otherReason').required=show;});
+['customerPhone','nationalId'].forEach(id=>$(id)?.addEventListener('input',e=>{e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,id==='customerPhone'?11:14);}));
 $('statusFilter').onchange=renderRequests;
 
 $('newRequestBtn').onclick=()=>{ $('requestModal').classList.remove('hidden'); };
@@ -235,6 +232,10 @@ $('closeModal').onclick=()=>{
 
 $('requestForm').onsubmit=async e=>{
  e.preventDefault();
+ const phone=$('customerPhone').value.trim(),nid=$('nationalId').value.trim();
+ if(!/^0[0-9]{10}$/.test(phone)){message('رقم التليفون غير صحيح، يجب أن يبدأ بصفر ويتكون من 11 رقمًا',true);return;}
+ if(!/^[0-9]{14}$/.test(nid)){message('راجع الرقم القومي، يجب إدخال 14 رقمًا',true);return;}
+ if($('reason').value==='سبب آخر'&&!$('otherReason').value.trim()){message('من فضلك اكتب سبب الاستثناء الآخر',true);return;}
  try{
   const branchId=Number($('reqBranch').value);
   const result=await api('requests',{
@@ -243,6 +244,11 @@ $('requestForm').onsubmit=async e=>{
     branchId,
     invoiceNumber:$('invoice').value.trim(),
     customerName:$('customer').value.trim(),
+    customerPhone:$('customerPhone').value.trim(),
+    nationalId:$('nationalId').value.trim(),
+    itemCode:$('itemCode').value.trim(),
+    itemName:$('itemName').value.trim(),
+    otherReason:$('otherReason').value.trim(),
     amount:Number($('amount').value),
     reason:$('reason').value,
     details:$('details').value.trim(),
@@ -250,8 +256,8 @@ $('requestForm').onsubmit=async e=>{
    })
   });
 
-  $('requestModal').classList.add('hidden');
   e.target.reset();
+  if(state.user.role!=='branch_user')$('requestModal').classList.add('hidden');
   message(`تم إرسال الطلب ${result.id} بنجاح`);
   await refreshAll();
  }catch(err){message(err.message,true)}
@@ -369,19 +375,22 @@ function renderUsers(){
     <h3>${esc(u.display_name)}</h3>
     <span class="pill">${roleName(u.role)}</span>
    </div>
-   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions"><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button></div>
+   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions">${u.username.toLowerCase()==='admin'?'<b>حساب محمي - لا يمكن تعديله</b>':`<button data-user-edit="${esc(u.id)}">تعديل البيانات والصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button>`}</div>
   </article>
- `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
+ `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-edit]').forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>String(x.id)===b.dataset.userEdit);if(!u)return;const username=prompt('اسم المستخدم',u.username);if(username===null)return;const displayName=prompt('الاسم الظاهر',u.display_name);if(displayName===null)return;const role=prompt('الدور: branch_user أو report_viewer أو system_admin',u.role);if(role===null)return;const branches=await api('branches');const selected=(await api('user-branches/'+encodeURIComponent(u.id))).branchIds||[];const choices=branches.branches.map(x=>x.id+': '+x.name).join('\\n');const raw=prompt('اكتب أرقام IDs للفروع مفصولة بفواصل. الفروع المتاحة:\\n'+choices,selected.join(','));if(raw===null)return;const current=u.permissions||{};const allowed=prompt('الصلاحيات المتاحة (اكتب أسماء الصلاحيات مفصولة بفواصل):\\ndashboard = لوحة المتابعة\nrequests = عرض طلبات الاستثناء\ncreate_request = إنشاء طلب استثناء\ntransfers = تحويل الحصص\ncreate_transfer = إنشاء تحويل حصة\nreports = التقارير\nusers = إدارة المستخدمين\nbranches = إدارة الفروع\naudit = سجل التدقيق\\nلإلغاء صلاحية احذفها من القائمة.',Object.keys(current).filter(k=>current[k]).join(','));if(allowed===null)return;const permissions={...Object.fromEntries(["dashboard","requests","create_request","decide_requests","transfers","create_transfer","decide_transfers","reports","users","branches","audit"].map(k=>[k,false]))};allowed.split(',').map(x=>x.trim()).filter(Boolean).forEach(k=>{if(Object.prototype.hasOwnProperty.call(permissions,k))permissions[k]=true;});try{await api('users/'+encodeURIComponent(u.id),{method:'PATCH',body:JSON.stringify({username,displayName,role,branchIds:raw.split(',').map(x=>Number(x.trim())).filter(Number.isInteger),permissions})});message('تم تحديث المستخدم وصلاحيات فروعه');await refreshAll();}catch(e){message(e.message,true);}});
+document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
 }
 
 async function loadReports(){
  const period=$('reportPeriod').value||currentPeriod();
  $('reportPeriod').value=period;
  try{
-  const d=await api('reports?period='+encodeURIComponent(period));
+  const from=$('reportFrom')?.value||'',to=$('reportTo')?.value||'',branch=($('reportBranch')?.value||'').trim();
+  const d=await api('reports?period='+encodeURIComponent(period)+'&from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to)+'&branch='+encodeURIComponent(branch));
   const statusLabel=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
-  $('balanceReportRows').innerHTML=(d.balances||[]).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
-  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.customer_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
+  const branchTerm=branch.toLowerCase();
+  $('balanceReportRows').innerHTML=(d.balances||[]).filter(x=>!branchTerm||(String(x.code)+' '+String(x.name)).toLowerCase().includes(branchTerm)).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
+  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.national_id)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
   $('transferReportRows').innerHTML=(d.transfers||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.from_code)} - ${esc(x.from_name)}</td><td>${esc(x.to_code)} - ${esc(x.to_name)}</td><td>${x.quantity}</td><td>${statusLabel(x.status)}</td><td>${esc(x.reason)}</td><td>${esc(x.requester_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decided_at)}</td></tr>`).join('')||'<tr><td colspan="11">لا توجد تحويلات في الفترة المحددة</td></tr>';
  }catch(e){message(e.message,true)}
 }
@@ -481,19 +490,32 @@ async function refreshHeaderClock(){
  if(el)el.textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(now);
  if(date)date.textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(now)+' • '+new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{timeZone:'Africa/Cairo',year:'numeric',month:'long',day:'numeric'}).format(now);
 }
-async function refreshPrayerTimes(){
+let prayerCoords={lat:30.0444,lon:31.2357},prayerCity='القاهرة',prayerSchedule=null;
+function setPrayerHeading(){const h=document.querySelector('.prayer-heading b');if(h)h.textContent='مواقيت الصلاة - '+prayerCity;}
+async function loadPrayerSchedule(){
  try{
-  const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude=30.0444&longitude=31.2357&method=5');
-  const j=await r.json(),t=j.data.timings,now=new Date(),m=now.getHours()*60+now.getMinutes();
+  const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude='+prayerCoords.lat+'&longitude='+prayerCoords.lon+'&method=5');
+  if(!r.ok)throw new Error('prayer api');const j=await r.json();prayerSchedule=j.data.timings;
   const items=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];
-  const list=document.getElementById('prayerTimes');
-  if(list)list.innerHTML=items.map(([name,key])=>'<div class="prayer-time"><span>'+name+'</span><b dir="ltr">'+t[key].slice(0,5)+'</b></div>').join('');
-
-  let next=null;
-  for(const [name,key] of items){const [hh,mm]=t[key].split(':').map(Number),v=hh*60+mm;if(v>m){next={name,min:v};break;}}
-  if(!next){const [hh,mm]=t.Fajr.split(':').map(Number);next={name:'الفجر',min:hh*60+mm+1440};}
-  const remain=next.min-m,box=document.getElementById('prayerLine');
-  if(box)box.textContent='الصلاة القادمة: '+next.name+' بعد '+Math.floor(remain/60)+' س '+(remain%60)+' د';
- }catch{const box=document.getElementById('prayerLine');if(box)box.textContent='مواقيت الصلاة – القاهرة';}
+  const list=document.getElementById('prayerTimes');if(list)list.innerHTML=items.map(([name,key])=>'<div class="prayer-time"><span>'+name+'</span><b dir="ltr">'+prayerSchedule[key].slice(0,5)+'</b></div>').join('');
+  setPrayerHeading();updatePrayerCountdown();
+ }catch{const box=document.getElementById('prayerLine');if(box)box.textContent='تعذر تحميل مواقيت الصلاة';}
 }
-refreshHeaderClock();setInterval(refreshHeaderClock,1000);refreshPrayerTimes();setInterval(refreshPrayerTimes,6*60*60*1000);
+function updatePrayerCountdown(){
+ if(!prayerSchedule)return;const now=new Date(),keys=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];
+ let next=null;for(const [name,key] of keys){const [h,m]=prayerSchedule[key].split(':').map(Number);const target=new Date(now);target.setHours(h,m,0,0);if(target>now){next={name,target};break;}}
+ if(!next){const [h,m]=prayerSchedule.Fajr.split(':').map(Number),target=new Date(now);target.setDate(target.getDate()+1);target.setHours(h,m,0,0);next={name:'الفجر',target};}
+ const sec=Math.max(0,Math.floor((next.target-now)/1000)),hh=String(Math.floor(sec/3600)).padStart(2,'0'),mm=String(Math.floor(sec%3600/60)).padStart(2,'0'),ss=String(sec%60).padStart(2,'0');
+ const box=document.getElementById('prayerLine');if(box)box.textContent='الصلاة القادمة: '+next.name+' بعد '+hh+':'+mm+':'+ss;
+}
+async function choosePrayerCity(){const city=prompt('اكتب اسم المدينة (مثال: الجيزة، القاهرة، الإسكندرية):',prayerCity);if(!city)return;try{const r=await fetch('https://geocoding-api.open-meteo.com/v1/search?name='+encodeURIComponent(city)+'&count=1&language=ar&format=json');const j=await r.json(),loc=j?.results?.[0];if(!loc){message('لم يتم العثور على المدينة');return;}prayerCoords={lat:loc.latitude,lon:loc.longitude};prayerCity=loc.name||city;setPrayerHeading();await loadPrayerSchedule();}catch{message('تعذر تحديد المدينة');}}
+function detectPrayerLocation(){
+ if(!navigator.geolocation){loadPrayerSchedule();return;}
+ navigator.geolocation.getCurrentPosition(async pos=>{
+  prayerCoords={lat:pos.coords.latitude,lon:pos.coords.longitude};
+  try{const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&accept-language=ar&lat='+prayerCoords.lat+'&lon='+prayerCoords.lon);const j=await r.json();prayerCity=j?.address?.city||j?.address?.town||j?.address?.state||'موقعك الحالي';}catch{prayerCity='موقعك الحالي';}
+  loadPrayerSchedule();
+ },()=>{prayerCity='القاهرة (الموقع الافتراضي)';loadPrayerSchedule();},{enableHighAccuracy:false,timeout:10000,maximumAge:3600000});
+}
+document.getElementById('prayerLocationBtn')?.addEventListener('click',choosePrayerCity);detectPrayerLocation();setInterval(updatePrayerCountdown,1000);setInterval(loadPrayerSchedule,6*60*60*1000);
+refreshHeaderClock();setInterval(refreshHeaderClock,1000);

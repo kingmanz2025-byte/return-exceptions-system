@@ -75,7 +75,7 @@
  </div>
  <div class="header-clock">
   <div class="clock-main"><strong id="liveClock">--:--:--</strong><span id="liveDate"></span></div>
-  <div class="prayer-panel"><div class="prayer-heading"><b>مواقيت الصلاة - القاهرة</b><span id="prayerLine">جاري تحميل المواقيت...</span></div><div id="prayerTimes" class="prayer-times"><span>جاري تحميل المواقيت...</span></div></div>
+  <div class="prayer-panel"><div class="prayer-heading"><b>مواقيت الصلاة - جاري تحديد الموقع</b><span id="prayerLine">جاري تحميل المواقيت...</span><button type="button" class="ghost" id="prayerLocationBtn">تغيير المدينة</button></div><div id="prayerTimes" class="prayer-times"><span>جاري تحميل المواقيت...</span></div></div>
  </div>
  <div class="header-actions">
   <span id="userInfo"></span>
@@ -140,28 +140,6 @@
  </div>
 
  <div class="panel"><div class="panelhead"><h2>الفروع الأكثر استخدامًا للاستثناءات</h2><small>ترتيب حسب عدد الطلبات في الفترة</small></div><div id="branchRanking" class="dashboard-feed"></div></div>
- <div class="panel">
-  <div class="panelhead">
-   <h2>أرصدة الفروع</h2>
-   <input id="branchSearch" placeholder="ابحث بكود الفرع أو اسمه"><input id="branchUsageSearch" type="number" min="0" placeholder="تصفية حسب المستخدم">
-  </div>
-  <div class="tablewrap">
-   <table>
-    <thead>
-     <tr>
-      <th>كود الفرع</th>
-      <th>اسم الفرع</th>
-      <th>الحصة الأساسية</th>
-      <th>تحويلات واردة</th>
-      <th>تحويلات صادرة</th>
-      <th>المستخدم</th>
-      <th>المتاح</th>
-     </tr>
-    </thead>
-    <tbody id="branchRows"></tbody>
-   </table>
-  </div>
- </div>
 </section>
 
 <section id="requests" class="page">
@@ -219,11 +197,16 @@
 </section>
 
 <section id="reports" class="page">
- <div class="pagehead"><div><h1>التقارير</h1><p>تقارير الاستثناءات وتحويلات الحصص وأرصدة الفروع</p></div></div>
- <div class="panel report-filter"><label>فترة التقرير<input id="reportPeriod" type="month"></label><button class="primary" id="loadReportsBtn">عرض التقرير</button></div>
- <div class="panel"><div class="panelhead"><h2>ملخص أرصدة الفروع</h2><button class="ghost" data-export="balanceTable" data-filename="أرصدة-الفروع">تنزيل Excel</button></div><div class="tablewrap"><table id="balanceTable"><thead><tr><th>كود الفرع</th><th>الفرع</th><th>الحصة الأساسية</th><th>وارد</th><th>صادر</th><th>المستخدم</th><th>المتاح</th></tr></thead><tbody id="balanceReportRows"></tbody></table></div></div>
- <div class="panel"><div class="panelhead"><h2>تقرير طلبات الاستثناء</h2><button class="ghost" data-export="requestReportTable" data-filename="طلبات-الاستثناء">تنزيل Excel</button></div><div class="tablewrap"><table id="requestReportTable"><thead><tr><th>رقم الطلب</th><th>الفترة</th><th>كود الفرع</th><th>الفرع</th><th>الفاتورة</th><th>العميل</th><th>القيمة</th><th>السبب</th><th>الحالة</th><th>مقدم الطلب</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>ملاحظات القرار</th></tr></thead><tbody id="requestReportRows"></tbody></table></div></div>
- <div class="panel"><div class="panelhead"><h2>تقرير تحويلات الحصص</h2><button class="ghost" data-export="transferReportTable" data-filename="تحويلات-الحصص">تنزيل Excel</button></div><div class="tablewrap"><table id="transferReportTable"><thead><tr><th>رقم التحويل</th><th>الفترة</th><th>الفرع المانح</th><th>الفرع المستفيد</th><th>الكمية</th><th>الحالة</th><th>سبب التحويل</th><th>مقدم التحويل</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>تاريخ القرار</th></tr></thead><tbody id="transferReportRows"></tbody></table></div></div>
+ <div class="pagehead"><div><h1>التقارير</h1><p>اختر التقرير المطلوب ثم قم بتحميله بصيغة Excel</p></div></div>
+ <div class="report-shortcuts">
+  <button class="secondary" data-report-open="balance">ملخص أرصدة الفروع</button>
+  <button class="secondary" data-report-open="requests">تقرير طلبات الاستثناء</button>
+  <button class="secondary" data-report-open="transfers">تقرير تحويلات الحصص</button>
+ </div>
+ <div class="panel report-filter"><label>شهر أرصدة الفروع<input id="reportPeriod" type="month"></label><label>من تاريخ<input id="reportFrom" type="date"></label><label>إلى تاريخ<input id="reportTo" type="date"></label><label>بحث بالفرع<input id="reportBranch" placeholder="كود الفرع أو اسمه"></label><button class="primary" id="loadReportsBtn">عرض التقرير</button></div>
+ <div class="panel report-panel hidden" data-report-panel="balance"><div class="panelhead"><h2>ملخص أرصدة الفروع</h2><button class="ghost" data-export="balanceTable" data-filename="أرصدة-الفروع">تنزيل Excel</button></div><div class="tablewrap"><table id="balanceTable"><thead><tr><th>كود الفرع</th><th>الفرع</th><th>الحصة الأساسية</th><th>وارد</th><th>صادر</th><th>المستخدم</th><th>المتاح</th></tr></thead><tbody id="balanceReportRows"></tbody></table></div></div>
+ <div class="panel report-panel hidden" data-report-panel="requests"><div class="panelhead"><h2>تقرير طلبات الاستثناء</h2><button class="ghost" data-export="requestReportTable" data-filename="طلبات-الاستثناء">تنزيل Excel</button></div><div class="tablewrap"><table id="requestReportTable"><thead><tr><th>رقم الطلب</th><th>الفترة</th><th>كود الفرع</th><th>الفرع</th><th>الفاتورة</th><th>العميل</th><th>تليفون العميل</th><th>الرقم القومي</th><th>كود الصنف</th><th>اسم الصنف</th><th>القيمة</th><th>السبب</th><th>الحالة</th><th>مقدم الطلب</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>ملاحظات القرار</th></tr></thead><tbody id="requestReportRows"></tbody></table></div></div>
+ <div class="panel report-panel hidden" data-report-panel="transfers"><div class="panelhead"><h2>تقرير تحويلات الحصص</h2><button class="ghost" data-export="transferReportTable" data-filename="تحويلات-الحصص">تنزيل Excel</button></div><div class="tablewrap"><table id="transferReportTable"><thead><tr><th>رقم التحويل</th><th>الفترة</th><th>الفرع المانح</th><th>الفرع المستفيد</th><th>الكمية</th><th>الحالة</th><th>سبب التحويل</th><th>مقدم التحويل</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>تاريخ القرار</th></tr></thead><tbody id="transferReportRows"></tbody></table></div></div>
 </section>
 
 <section id="users" class="page">
@@ -244,7 +227,7 @@
     <input id="newDisplayName" required maxlength="120">
    </label>
    <label>كلمة المرور
-    <input id="newPassword" type="password" required minlength="8">
+    <input id="newPassword" type="password" required minlength="12">
    </label>
    <label>الدور
     <select id="newRole" required>
@@ -299,6 +282,18 @@
    <label>اسم العميل
     <input id="customer" maxlength="120">
    </label>
+   <label>رقم تليفون العميل
+    <input id="customerPhone" inputmode="numeric" maxlength="11" pattern="0[0-9]{10}" placeholder="01xxxxxxxxx" required>
+   </label>
+   <label>الرقم القومي
+    <input id="nationalId" inputmode="numeric" maxlength="14" pattern="[0-9]{14}" required>
+   </label>
+   <label>كود الصنف
+    <input id="itemCode" maxlength="80" required>
+   </label>
+   <label>اسم الصنف
+    <input id="itemName" maxlength="160" required>
+   </label>
 
    <label>قيمة المرتجع بالجنيه
     <input id="amount" type="number" min="0" step="0.01" required>
@@ -315,6 +310,9 @@
     </select>
    </label>
 
+   <label class="full hidden" id="otherReasonWrap">اكتب السبب الآخر
+    <input id="otherReason" maxlength="300">
+   </label>
    <label class="full">تفاصيل ومبررات الطلب
     <textarea id="details" rows="4" required></textarea>
    </label>
