@@ -575,7 +575,7 @@ export async function onRequest({request,env}) {
   await ensureRecovery(env);
   const rows=await env.DB.prepare("SELECT id,username,display_name,role,is_active,created_at,must_change_password,permissions_json FROM users ORDER BY created_at DESC").all();
   const recovery=await env.DB.prepare("SELECT id,username,requested_at FROM password_recovery_requests WHERE status='pending' ORDER BY requested_at DESC").all();
-  return json({ok:true,users:rows.results,recoveryRequests:recovery.results});
+  return json({ok:true,users:rows.results.map(u=>({...u,permissions:parsePermissions(u)})),recoveryRequests:recovery.results});
  }
 
  // إنشاء مستخدم
