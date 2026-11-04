@@ -622,7 +622,7 @@ export async function onRequest({request,env}) {
  if(path==="reports"&&method==="GET"){
   if(!["system_admin","report_viewer"].includes(user.role))return fail("ليس لديك صلاحية عرض التقارير",403);
   const p=url.searchParams.get("period")||period();
-  if(!/^\\d{4}-\\d{2}$/.test(p))return fail("صيغة الفترة غير صحيحة");
+  if(!/^\d{4}-\d{2}$/.test(p))return fail("صيغة الفترة غير صحيحة");
   const requests=await env.DB.prepare(
    "SELECT e.id,e.period,e.invoice_number,e.customer_name,e.amount,e.reason,e.details,e.status,e.decision_note,e.created_at,b.code branch_code,b.name branch_name,cu.display_name creator_name,du.display_name decision_maker FROM exception_requests e JOIN branches b ON b.id=e.branch_id LEFT JOIN users cu ON cu.id=e.created_by LEFT JOIN users du ON du.id=e.decided_by WHERE e.period=? ORDER BY b.id,e.created_at DESC"
   ).bind(p).all();
