@@ -240,6 +240,8 @@ export async function onRequest({request,env}) {
   });
  }
 
+ if(path==="password-recovery"&&method==="POST"){await ensureRecovery(env);const x=await body(request),name=String(x?.username||"").trim();if(!name)return fail("أدخل اسم المستخدم");const u=await env.DB.prepare("SELECT id FROM users WHERE username=? COLLATE NOCASE AND is_active=1").bind(name).first();await env.DB.prepare("INSERT INTO password_recovery_requests(id,username,user_id) VALUES(?,?,?)").bind(uid(),name,u?.id||null).run();return json({ok:true});}
+
  const user=await auth(request,env);
 
  // تسجيل الخروج
@@ -608,7 +610,7 @@ export async function onRequest({request,env}) {
  }
 
 
- if(path==="password-recovery"&&method==="POST"){await ensureRecovery(env);const x=await body(request),name=String(x?.username||"").trim();if(!name)return fail("أدخل اسم المستخدم");const u=await env.DB.prepare("SELECT id FROM users WHERE username=? COLLATE NOCASE AND is_active=1").bind(name).first();await env.DB.prepare("INSERT INTO password_recovery_requests(id,username,user_id) VALUES(?,?,?)").bind(uid(),name,u?.id||null).run();return json({ok:true});}
+
  if(path==="password-recovery"&&method==="GET"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);await ensureRecovery(env);const r=await env.DB.prepare("SELECT id,username,requested_at FROM password_recovery_requests WHERE status='pending' ORDER BY requested_at DESC").all();return json({ok:true,requests:r.results});}
  if(path.startsWith("password-recovery/")&&method==="POST"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);await ensureRecovery(env);const id=path.split("/")[1],x=await body(request),q=await env.DB.prepare("SELECT * FROM password_recovery_requests WHERE id=? AND status='pending'").bind(id).first();if(!q)return fail("الطلب غير موجود",404);if(x.decision==="reject"){await env.DB.prepare("UPDATE password_recovery_requests SET status='rejected',decided_at=CURRENT_TIMESTAMP,decided_by=? WHERE id=?").bind(user.id,id).run();await audit(env,user,"password_recovery_rejected","password_recovery",id,{});return json({ok:true});}if(typeof x.temporaryPassword!=="string"||x.temporaryPassword.length<12||!q.user_id)return fail("كلمة المرور المؤقتة يجب ألا تقل عن 12 حرفًا");const salt=b64u(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(x.temporaryPassword,salt);await env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?").bind(hash,salt,q.user_id).run();await env.DB.prepare("UPDATE password_recovery_requests SET status='approved',decided_at=CURRENT_TIMESTAMP,decided_by=? WHERE id=?").bind(user.id,id).run();await audit(env,user,"password_reset","user",q.user_id,{});return json({ok:true});}
  if(path==="admin/branches"&&method==="GET"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);const r=await env.DB.prepare("SELECT id,code,name,monthly_quota,is_active FROM branches ORDER BY id").all();return json({ok:true,branches:r.results});}
