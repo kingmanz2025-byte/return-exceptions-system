@@ -290,7 +290,7 @@ export async function onRequest({request,env}) {
 
   return json({
    ok:true,
-   user,
+   user:{...user,permissions:parsePermissions(user)},
    branches:access.results
   });
  }
