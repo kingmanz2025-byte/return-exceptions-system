@@ -475,11 +475,6 @@ if('serviceWorker'in navigator){
  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 }
 
-// Egypt live clock and prayer times
-async function updateSiteClock(){const d=new Date();if($('liveClock'))$('liveClock').textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(d);if($('liveDate'))$('liveDate').textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(d)+' • '+new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{timeZone:'Africa/Cairo',year:'numeric',month:'long',day:'numeric'}).format(d);}
-async function updatePrayerTimes(){try{const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude=30.0444&longitude=31.2357&method=5');const j=await r.json(),t=j.data.timings;const n=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];const m=new Date().getHours()*60+new Date().getMinutes();let next=n.map(x=>({name:x[0],v:t[x[1]]})).map(x=>({...x,min:Number(x.v.slice(0,2))*60+Number(x.v.slice(3,5))})).find(x=>x.min>m);if(!next)next={name:'الفجر',min:Number(t.Fajr.slice(0,2))*60+Number(t.Fajr.slice(3,5))+1440};const left=next.min-m;$('prayerLine').textContent='الصلاة القادمة: '+next.name+' بعد '+Math.floor(left/60)+' س '+left%60+' د';}catch{$('prayerLine').textContent='مواقيت الصلاة – القاهرة';}}
-setInterval(updateSiteClock,1000);updateSiteClock();updatePrayerTimes();setInterval(updatePrayerTimes,6*60*60*1000);
-
 async function refreshHeaderClock(){
  const now=new Date();
  const el=document.getElementById('liveClock'),date=document.getElementById('liveDate');
@@ -491,6 +486,9 @@ async function refreshPrayerTimes(){
   const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude=30.0444&longitude=31.2357&method=5');
   const j=await r.json(),t=j.data.timings,now=new Date(),m=now.getHours()*60+now.getMinutes();
   const items=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];
+  const list=document.getElementById('prayerTimes');
+  if(list)list.innerHTML=items.map(([name,key])=>'<div class="prayer-time"><span>'+name+'</span><b dir="ltr">'+t[key].slice(0,5)+'</b></div>').join('');
+
   let next=null;
   for(const [name,key] of items){const [hh,mm]=t[key].split(':').map(Number),v=hh*60+mm;if(v>m){next={name,min:v};break;}}
   if(!next){const [hh,mm]=t.Fajr.split(':').map(Number);next={name:'الفجر',min:hh*60+mm+1440};}
