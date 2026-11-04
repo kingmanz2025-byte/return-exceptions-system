@@ -39,6 +39,7 @@ function setPage(p){
 }
 
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));
+document.addEventListener('click',e=>{const b=e.target.closest('[data-go-page]');if(b)setPage(b.dataset.goPage)});
 
 async function login(e){
  e.preventDefault();
