@@ -23,13 +23,18 @@ async function passwordHash(password,salt){
 }
 
 const uid=()=>crypto.randomUUID();
-const DEFAULT_PERMISSIONS={system_admin:{dashboard:true,requests:true,create_request:true,transfers:true,create_transfer:true,reports:true,users:true,branches:true,audit:true},branch_user:{create_request:true},report_viewer:{reports:true}};
+const DEFAULT_PERMISSIONS={system_admin:{dashboard:true,requests:true,create_request:true,decide_requests:true,transfers:true,create_transfer:true,decide_transfers:true,reports:true,users:true,branches:true,audit:true},branch_user:{create_request:true},report_viewer:{reports:true}};
 function parsePermissions(user){try{return {...(DEFAULT_PERMISSIONS[user.role]||{}),...JSON.parse(user.permissions_json||"{}")};}catch{return DEFAULT_PERMISSIONS[user.role]||{};}}
 function allowed(user,key){return parsePermissions(user)[key]===true;}
+let returnsFieldsMigration;
 async function ensureReturnsFields(env){
- const add=async(table,column,definition)=>{const cols=await env.DB.prepare("PRAGMA table_info("+table+")").all();if(!cols.results.some(c=>c.name===column))await env.DB.prepare("ALTER TABLE "+table+" ADD COLUMN "+column+" "+definition).run();};
- await add("users","permissions_json","TEXT NOT NULL DEFAULT '{}' ");
- for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"]])await add("exception_requests",c,d);
+ if(returnsFieldsMigration)return returnsFieldsMigration;
+ returnsFieldsMigration=(async()=>{
+  const add=async(table,column,definition)=>{const cols=await env.DB.prepare("PRAGMA table_info("+table+")").all();if(!cols.results.some(c=>c.name===column))await env.DB.prepare("ALTER TABLE "+table+" ADD COLUMN "+column+" "+definition).run();};
+  await add("users","permissions_json","TEXT NOT NULL DEFAULT '{}' ");
+  for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"]])await add("exception_requests",c,d);
+ })();
+ return returnsFieldsMigration;
 }
 async function ensureRecovery(env){await env.DB.prepare("CREATE TABLE IF NOT EXISTS password_recovery_requests (id TEXT PRIMARY KEY, username TEXT NOT NULL, user_id TEXT, status TEXT NOT NULL DEFAULT 'pending', requested_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, decided_at TEXT, decided_by TEXT)").run();const c=await env.DB.prepare("PRAGMA table_info(users)").all();if(!c.results.some(x=>x.name==="must_change_password"))await env.DB.prepare("ALTER TABLE users ADD COLUMN must_change_password INTEGER NOT NULL DEFAULT 0").run();}
 
@@ -458,7 +463,7 @@ export async function onRequest({request,env}) {
 
  // اعتماد أو رفض التحويل
  if(path.startsWith("transfers/")&&method==="POST"){
-  if(user.role!=="system_admin")
+  if(!allowed(user,"decide_transfers"))
    return fail("اعتماد أو رفض التحويل لمدير النظام فقط",403);
 
   const id=path.split("/")[1];
@@ -514,7 +519,7 @@ export async function onRequest({request,env}) {
 
  // اعتماد أو رفض طلب استثناء
  if(path==="decisions"&&method==="POST"){
-  if(user.role!=="system_admin")
+  if(!allowed(user,"decide_requests"))
    return fail("القرار لمدير النظام فقط",403);
 
   const x=await body(request);
@@ -628,7 +633,7 @@ export async function onRequest({request,env}) {
 
 
  if(path==="password-recovery"&&method==="GET"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);await ensureRecovery(env);const r=await env.DB.prepare("SELECT id,username,requested_at FROM password_recovery_requests WHERE status='pending' ORDER BY requested_at DESC").all();return json({ok:true,requests:r.results});}
- if(path.startsWith("password-recovery/")&&method==="POST"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);await ensureRecovery(env);const id=path.split("/")[1],x=await body(request),q=await env.DB.prepare("SELECT * FROM password_recovery_requests WHERE id=? AND status='pending'").bind(id).first();if(!q)return fail("الطلب غير موجود",404);if(x.decision==="reject"){await env.DB.prepare("UPDATE password_recovery_requests SET status='rejected',decided_at=CURRENT_TIMESTAMP,decided_by=? WHERE id=?").bind(user.id,id).run();await audit(env,user,"password_recovery_rejected","password_recovery",id,{});return json({ok:true});}if(typeof x.temporaryPassword!=="string"||x.temporaryPassword.length<12||!q.user_id)return fail("كلمة المرور المؤقتة يجب ألا تقل عن 12 حرفًا");const salt=b64u(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(x.temporaryPassword,salt);await env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?").bind(hash,salt,q.user_id).run();await env.DB.prepare("UPDATE password_recovery_requests SET status='approved',decided_at=CURRENT_TIMESTAMP,decided_by=? WHERE id=?").bind(user.id,id).run();await audit(env,user,"password_reset","user",q.user_id,{});return json({ok:true});}
+ if(path.startsWith("password-recovery/")&&method==="POST"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);await ensureRecovery(env);const id=path.split("/")[1],x=await body(request),q=await env.DB.prepare("SELECT * FROM password_recovery_requests WHERE id=? AND status='pending'").bind(id).first();if(!q)return fail("الطلب غير موجود",404);if(q.user_id){const target=await env.DB.prepare("SELECT username FROM users WHERE id=?").bind(q.user_id).first();if(String(target?.username||"").toLowerCase()==="admin")return fail("حساب admin محمي ولا يمكن تعديله",403);}if(x.decision==="reject"){await env.DB.prepare("UPDATE password_recovery_requests SET status='rejected',decided_at=CURRENT_TIMESTAMP,decided_by=? WHERE id=?").bind(user.id,id).run();await audit(env,user,"password_recovery_rejected","password_recovery",id,{});return json({ok:true});}if(typeof x.temporaryPassword!=="string"||x.temporaryPassword.length<12||!q.user_id)return fail("كلمة المرور المؤقتة يجب ألا تقل عن 12 حرفًا");const salt=b64u(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(x.temporaryPassword,salt);await env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?").bind(hash,salt,q.user_id).run();await env.DB.prepare("UPDATE password_recovery_requests SET status='approved',decided_at=CURRENT_TIMESTAMP,decided_by=? WHERE id=?").bind(user.id,id).run();await audit(env,user,"password_reset","user",q.user_id,{});return json({ok:true});}
  if(path==="admin/branches"&&method==="GET"){if(!allowed(user,"branches"))return fail("مدير النظام فقط",403);const r=await env.DB.prepare("SELECT id,code,name,monthly_quota,is_active FROM branches ORDER BY id").all();return json({ok:true,branches:r.results});}
  if(path==="admin/branches"&&method==="POST"){if(!allowed(user,"branches"))return fail("مدير النظام فقط",403);const x=await body(request);if(!x.code||!x.name||!Number.isInteger(Number(x.monthlyQuota))||Number(x.monthlyQuota)<0)return fail("بيانات الفرع غير صحيحة");try{const r=await env.DB.prepare("INSERT INTO branches(code,name,monthly_quota,is_active) VALUES(?,?,?,1)").bind(x.code.trim(),x.name.trim(),Number(x.monthlyQuota)).run();await audit(env,user,"branch_created","branch",String(r.meta?.last_row_id||""),{code:x.code,name:x.name});return json({ok:true},201);}catch{return fail("كود الفرع مستخدم أو البيانات غير صحيحة");}}
  if(path.startsWith("admin/branches/")&&method==="PATCH"){if(!allowed(user,"branches"))return fail("غير مصرح",403);const id=Number(path.split("/")[2]),x=await body(request),b=await env.DB.prepare("SELECT * FROM branches WHERE id=?").bind(id).first();if(!b)return fail("الفرع غير موجود",404);if(x.toggleActive){await env.DB.prepare("UPDATE branches SET is_active=? WHERE id=?").bind(b.is_active?0:1,id).run();await audit(env,user,b.is_active?"branch_deactivated":"branch_activated","branch",String(id),{});return json({ok:true});}await env.DB.prepare("UPDATE branches SET code=?,name=?,monthly_quota=? WHERE id=?").bind(x.code.trim(),x.name.trim(),Number(x.monthlyQuota),id).run();await audit(env,user,"branch_updated","branch",String(id),{code:x.code,name:x.name,monthlyQuota:x.monthlyQuota});return json({ok:true});}
