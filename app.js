@@ -204,9 +204,11 @@ function renderRequests(){
     </div>
     <span class="pill ${r.status}">${statusName(r.status)}</span>
    </div>
-   <p><b>السبب:</b> ${esc(r.reason)} • <b>القيمة:</b> ${money(r.amount)} ج.م</p>
+   <p><b>السبب:</b> ${esc(r.reason==='سبب آخر'?(r.other_reason||r.reason):r.reason)} • <b>القيمة:</b> ${money(r.amount)} ج.م</p>
    <p>${esc(r.details)}</p>
    ${r.customer_name?`<p>العميل: ${esc(r.customer_name)}</p>`:''}
+   <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')} • <b>الرقم القومي:</b> ${esc(r.national_id||'—')}</p>
+   <p><b>كود الصنف:</b> ${esc(r.item_code||'—')} • <b>اسم الصنف:</b> ${esc(r.item_name||'—')}</p>
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
    ${r.status==='pending'&&state.user.role==='system_admin'?`
     <div class="itemactions">
@@ -223,6 +225,7 @@ function renderRequests(){
 
 $('requestSearch').oninput=renderRequests;
 $('reason')?.addEventListener('change',()=>{const show=$('reason').value==='سبب آخر';$('otherReasonWrap')?.classList.toggle('hidden',!show);$('otherReason').required=show;});
+['customerPhone','nationalId'].forEach(id=>$(id)?.addEventListener('input',e=>{e.target.value=e.target.value.replace(/[^0-9]/g,'').slice(0,id==='customerPhone'?11:14);}));
 $('statusFilter').onchange=renderRequests;
 
 $('newRequestBtn').onclick=()=>{ $('requestModal').classList.remove('hidden'); };
@@ -387,7 +390,8 @@ async function loadReports(){
  const period=$('reportPeriod').value||currentPeriod();
  $('reportPeriod').value=period;
  try{
-  const d=await api('reports?period='+encodeURIComponent(period));
+  const from=$('reportFrom')?.value||'',to=$('reportTo')?.value||'',branch=($('reportBranch')?.value||'').trim();
+  const d=await api('reports?period='+encodeURIComponent(period)+'&from='+encodeURIComponent(from)+'&to='+encodeURIComponent(to)+'&branch='+encodeURIComponent(branch));
   const statusLabel=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
   $('balanceReportRows').innerHTML=(d.balances||[]).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
   $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.national_id)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
