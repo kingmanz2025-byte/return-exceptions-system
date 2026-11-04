@@ -51,7 +51,7 @@ async function auth(req,env){
  const h=await sha(token);
 
  const s=await env.DB.prepare(
-  "SELECT u.id,u.username,u.display_name,u.role,u.is_active,u.must_change_password FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1"
+  "SELECT u.id,u.username,u.display_name,u.role,u.is_active,u.must_change_password,u.permissions_json FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1"
  ).bind(h,new Date().toISOString()).first();
 
  return s||null;
