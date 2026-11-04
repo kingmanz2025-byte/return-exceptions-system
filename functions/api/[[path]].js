@@ -19,6 +19,16 @@ export async function onRequest({request,env}) {
  const url=new URL(request.url),path=url.pathname.replace(/^\/api\/?/,"").replace(/\/$/,""),method=request.method;
  if(method==="OPTIONS")return new Response(null,{status:204});
  if(path==="health"&&method==="GET"){const r=await env.DB.prepare("SELECT COUNT(*) total_branches FROM branches WHERE is_active=1").first();return json({ok:true,database:"connected",...r});}
+ if(path==="setup-status"&&method==="GET"){
+  const count=await env.DB.prepare(
+   "SELECT COUNT(*) n FROM users"
+  ).first();
+
+  return json({
+   ok:true,
+   setupRequired:Number(count?.n||0)===0
+  });
+ }
  if(path==="setup"&&method==="POST"){
   if(!env.ADMIN_SETUP_KEY)return fail("Set ADMIN_SETUP_KEY in Cloudflare Pages environment variables first",503);
   const x=await body(request);if(!x||x.setupKey!==env.ADMIN_SETUP_KEY)return fail("Setup key is incorrect",403);
