@@ -59,7 +59,7 @@ async function startApp(){
  $('usersNav').classList.toggle('hidden',me.user.role!=='system_admin');
  $('auditNav').classList.toggle('hidden',!['system_admin','report_viewer'].includes(me.user.role));
  $('newRequestBtn').classList.toggle('hidden',me.user.role==='report_viewer');
- $('transferCreate').classList.toggle('hidden',me.user.role!=='branch_user');
+ $('transferCreate').classList.toggle('hidden',!['branch_user','system_admin'].includes(me.user.role));
  await refreshAll();
 }
 
@@ -78,9 +78,9 @@ async function refreshAll(){
    }catch(e){state.dashboard=null}
   }else{state.dashboard=null}
 
-  if(state.user.role==='branch_user'){
+  if(['branch_user','system_admin'].includes(state.user.role)){
    try{const tb=await api('transfer-branches');state.transferBranches=tb.branches||[];}catch(e){state.transferBranches=[];message(e.message,true)}
-  }else{state.transferBranches=state.branches;}
+  }else{state.transferBranches=[];}
   fillBranchSelects();
   renderDashboard();
   renderRequests();
@@ -100,9 +100,16 @@ async function refreshAll(){
 
 function fillBranchSelects(){
  const own=state.branches.map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
- const target=state.transferBranches.filter(b=>!state.branches.some(x=>Number(x.id)===Number(b.id))).map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
  ['reqBranch','fromBranch','userBranches'].forEach(id=>{const el=$(id);if(el)el.innerHTML=own;});
- const to=$('toBranch');if(to)to.innerHTML=target||'<option value="">لا توجد فروع مستفيدة متاحة</option>';
+ updateTransferTargets();
+}
+function updateTransferTargets(){
+ const from=$('fromBranch');
+ const to=$('toBranch');
+ if(!from||!to)return;
+ const fromId=Number(from.value);
+ const targets=state.transferBranches.filter(b=>Number(b.id)!==fromId);
+ to.innerHTML=targets.map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('')||'<option value="">لا توجد فروع مستفيدة متاحة</option>';
 }
 
 function renderDashboard(){
@@ -141,6 +148,7 @@ function renderDashboard(){
 }
 
 $('branchSearch').oninput=renderDashboard;
+$('fromBranch').addEventListener('change',updateTransferTargets);
 $('refreshBtn').onclick=refreshAll;
 
 function renderRequests(){

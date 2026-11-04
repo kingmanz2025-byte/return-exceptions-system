@@ -274,7 +274,7 @@ export async function onRequest({request,env}) {
 
  // قائمة الفروع النشطة لاختيار الفرع المستفيد في طلب تحويل الحصة
  if(path==="transfer-branches"&&method==="GET"){
-  if(user.role!=="branch_user")return fail("هذه الخدمة لمسؤولي الفروع فقط",403);
+  if(!["branch_user","system_admin"].includes(user.role))return fail("ليس لديك صلاحية عرض الفروع للتحويل",403);
   const rows=await env.DB.prepare("SELECT id,code,name,monthly_quota FROM branches WHERE is_active=1 ORDER BY name").all();
   return json({ok:true,branches:rows.results});
  }
@@ -378,8 +378,8 @@ export async function onRequest({request,env}) {
 
  // إنشاء طلب تحويل حصة
  if(path==="transfers"&&method==="POST"){
-  if(user.role!=="branch_user")
-   return fail("إنشاء طلب تحويل متاح لمسؤول الفرع فقط",403);
+  if(!["branch_user","system_admin"].includes(user.role))
+   return fail("ليس لديك صلاحية إنشاء طلب تحويل",403);
 
   const x=await body(request);
   const from=Number(x?.fromBranchId);
