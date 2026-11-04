@@ -359,6 +359,17 @@ $('userForm').onsubmit=async e=>{
 $('forgotPasswordBtn')?.addEventListener('click',async()=>{const username=prompt('اكتب اسم المستخدم لطلب استعادة كلمة المرور:');if(!username)return;try{await api('password-recovery',{method:'POST',body:JSON.stringify({username})});message('إذا كان الحساب موجودًا، تم تسجيل طلب الاستعادة لمراجعة مدير النظام.');}catch(e){message(e.message,true);}});
 $('passwordChangeForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('change-password',{method:'POST',body:JSON.stringify({password:$('newOwnPassword').value})});$('passwordChangeModal').classList.add('hidden');message('تم تغيير كلمة المرور بنجاح');await startApp();}catch(err){message(err.message,true);}});
 async function loadAdminBranches(){try{const d=await api('admin/branches');$('adminBranchList').innerHTML=(d.branches||[]).map(b=>'<article class="item"><b>'+esc(b.code)+' - '+esc(b.name)+'</b><p>الحصة: '+b.monthly_quota+' • '+(b.is_active?'نشط':'موقوف')+'</p><div class="itemactions"><button data-edit-branch="'+b.id+'">تعديل</button><button data-toggle-branch="'+b.id+'">'+(b.is_active?'إيقاف':'تفعيل')+'</button></div></article>').join('');document.querySelectorAll('[data-edit-branch]').forEach(btn=>btn.onclick=async()=>{const b=d.branches.find(x=>String(x.id)===btn.dataset.editBranch);const code=prompt('كود الفرع',b.code);if(code===null)return;const name=prompt('اسم الفرع',b.name);if(name===null)return;const quota=prompt('الحصة الأساسية',b.monthly_quota);if(quota===null)return;try{await api('admin/branches/'+b.id,{method:'PATCH',body:JSON.stringify({code,name,monthlyQuota:Number(quota)})});await loadAdminBranches();await refreshAll();message('تم تحديث الفرع');}catch(e){message(e.message,true);}});document.querySelectorAll('[data-toggle-branch]').forEach(btn=>btn.onclick=async()=>{try{await api('admin/branches/'+btn.dataset.toggleBranch,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await loadAdminBranches();await refreshAll();}catch(e){message(e.message,true);}});}catch(e){message(e.message,true);}}
+
+$('resetOperationalDataBtn')?.addEventListener('click',async()=>{
+ if(!confirm('تأكيد نهائي: سيتم حذف جميع طلبات الاستثناء والتحويلات وأرصدة الحصص وسجلاتها التشغيلية. سيظل المستخدمون والفروع والصلاحيات كما هي. هل تريد المتابعة؟'))return;
+ const btn=$('resetOperationalDataBtn');btn.disabled=true;
+ try{
+  const result=await api('admin/reset-operational-data',{method:'POST',body:JSON.stringify({confirmed:true})});
+  await refreshAll();
+  message('تم تصفير الحركات التشغيلية. الطلبات: '+result.deleted.requests+'، التحويلات: '+result.deleted.transfers+'، أرصدة الحصص: '+result.deleted.balances+'، سجلات التدقيق التشغيلية: '+result.deleted.operationalAudit);
+ }catch(err){message(err.message,true);}
+ finally{btn.disabled=false;}
+});
 $('branchForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('admin/branches',{method:'POST',body:JSON.stringify({code:$('branchCode').value.trim(),name:$('branchName').value.trim(),monthlyQuota:Number($('branchQuota').value)})});e.target.reset();message('تمت إضافة الفرع');await loadAdminBranches();await refreshAll();}catch(err){message(err.message,true);}});
 
 
