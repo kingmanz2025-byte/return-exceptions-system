@@ -5,7 +5,12 @@ const roleName=r=>({system_admin:'مدير النظام',branch_user:'مسؤول
 const statusName=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>Number(n||0).toLocaleString('ar-EG',{maximumFractionDigits:2});
-const currentPeriod=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit'}).format(new Date());
+const currentPeriod=()=>{
+ const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit'}).formatToParts(new Date());
+ const year=parts.find(x=>x.type==='year')?.value;
+ const month=parts.find(x=>x.type==='month')?.value;
+ return year&&month?`${year}-${month}`:new Date().toISOString().slice(0,7);
+};
 
 async function api(path,opts={}){
  const res=await fetch('/api/'+path,{...opts,credentials:'same-origin',headers:{'content-type':'application/json',...(opts.headers||{})}});
@@ -117,38 +122,56 @@ function updateTransferTargets(){
 function renderDashboard(){
  const branches=state.branches;
  const req=state.requests;
+ const transfers=state.transfers;
  const c=state.dashboard?.counts||{
   total:req.length,
-  pending:req.filter(x=>x.status==='pending').length
+  pending:req.filter(x=>x.status==='pending').length,
+  approved:req.filter(x=>x.status==='approved').length,
+  rejected:req.filter(x=>x.status==='rejected').length
  };
-
+ const total=Number(c.total??req.length)||0;
+ const pending=Number(c.pending??req.filter(x=>x.status==='pending').length)||0;
+ const approved=Number(c.approved??req.filter(x=>x.status==='approved').length)||0;
+ const rejected=Number(c.rejected??req.filter(x=>x.status==='rejected').length)||0;
+ const quota=branches.reduce((n,b)=>n+Number(b.quota??b.monthly_quota??3),0);
+ const incoming=branches.reduce((n,b)=>n+Number(b.transferred_in||0),0);
+ const outgoing=branches.reduce((n,b)=>n+Number(b.transferred_out||0),0);
+ const used=branches.reduce((n,b)=>n+Number(b.used||0),0);
+ const available=branches.reduce((n,b)=>n+Number(b.quota??b.monthly_quota??3)+Number(b.transferred_in||0)-Number(b.transferred_out||0)-Number(b.used||0),0);
  $('branchCount').textContent=branches.length;
- $('quotaCount').textContent=branches.reduce((n,b)=>n+Number(b.quota??b.monthly_quota??3),0);
- $('requestCount').textContent=c.total??req.length;
- $('pendingCount').textContent=c.pending??req.filter(x=>x.status==='pending').length;
- $('periodLabel').textContent='الفترة: '+currentPeriod();
-
+ $('quotaCount').textContent=quota;
+ $('requestCount').textContent=total;
+ $('pendingCount').textContent=pending;
+ $('periodLabel').textContent='ملخص الفترة: '+currentPeriod();
+ if($('approvedCount'))$('approvedCount').textContent=approved;
+ if($('rejectedCount'))$('rejectedCount').textContent=rejected;
+ if($('availableCount'))$('availableCount').textContent=available;
+ if($('usedCount'))$('usedCount').textContent=used;
+ if($('incomingCount'))$('incomingCount').textContent=incoming;
+ if($('outgoingCount'))$('outgoingCount').textContent=outgoing;
+ const pct=total?Math.round(approved/total*100):0;
+ if($('approvalRate'))$('approvalRate').textContent=pct+'%';
+ if($('approvalBar'))$('approvalBar').style.width=pct+'%';
+ if($('pendingBar'))$('pendingBar').style.width=(total?Math.round(pending/total*100):0)+'%';
+ if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
  const q=($('branchSearch').value||'').toLowerCase();
-
  $('branchRows').innerHTML=branches
   .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q))
   .map(b=>{
-   const quota=Number(b.quota??b.monthly_quota??3);
-   const inc=Number(b.transferred_in||0);
-   const out=Number(b.transferred_out||0);
-   const used=Number(b.used||0);
-   return `<tr>
-    <td>${esc(b.code)}</td>
-    <td>${esc(b.name)}</td>
-    <td>${quota}</td>
-    <td>${inc}</td>
-    <td>${out}</td>
-    <td>${used}</td>
-    <td>${quota+inc-out-used}</td>
-   </tr>`;
+   const base=Number(b.quota??b.monthly_quota??3),inc=Number(b.transferred_in||0),out=Number(b.transferred_out||0),u=Number(b.used||0),av=base+inc-out-u;
+   return `<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td>${base}</td><td>${inc}</td><td>${out}</td><td>${u}</td><td><b class="${av<0?'negative':''}">${av}</b></td></tr>`;
   }).join('')||'<tr><td colspan="7">لا توجد فروع متاحة لحسابك</td></tr>';
+ if($('recentRequests')){
+  $('recentRequests').innerHTML=[...req].sort((x,y)=>String(y.created_at||'').localeCompare(String(x.created_at||''))).slice(0,5).map(r=>`
+   <div class="dash-row"><div><b>${esc(r.branch_name||'فرع غير محدد')}</b><small>${esc(r.id)} · ${esc(r.creator_name||'')}</small></div><span class="pill ${esc(r.status)}">${statusName(r.status)}</span><strong>${money(r.amount)} ج.م</strong></div>`
+  ).join('')||'<p class="muted">لا توجد طلبات مسجلة حتى الآن.</p>';
+ }
+ if($('recentTransfers')){
+  $('recentTransfers').innerHTML=['system_admin','report_viewer'].includes(state.user?.role)
+   ?[...transfers].slice(0,5).map(t=>`<div class="dash-row"><div><b>${esc(t.from_branch_name||'')} ← ${esc(t.to_branch_name||'')}</b><small>${esc(t.id)} · ${esc(t.created_at||'')}</small></div><span class="pill ${esc(t.status)}">${statusName(t.status)}</span><strong>${Number(t.quantity||0)} حصة</strong></div>`).join('')||'<p class="muted">لا توجد تحويلات مسجلة.</p>'
+   :'<p class="muted">تظهر متابعة التحويلات التفصيلية لمدير النظام ومراقب التقارير.</p>';
+ }
 }
-
 $('branchSearch').oninput=renderDashboard;
 $('fromBranch').addEventListener('change',updateTransferTargets);
 $('loadReportsBtn').onclick=loadReports;
