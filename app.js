@@ -327,12 +327,66 @@ function renderAudit(){
 }
 
 (async()=>{
+ $('setupForm').addEventListener('submit',async e=>{
+ e.preventDefault();
+
+ $('setupError').textContent='';
+
+ const btn=e.submitter;
+ if(btn)btn.disabled=true;
+
+ const username=$('setupUsername').value.trim();
+
  try{
-  await api('me');
-  await startApp();
- }catch{
+  await api('setup',{
+   method:'POST',
+   body:JSON.stringify({
+    setupKey:$('setupKey').value,
+    username,
+    displayName:$('setupDisplayName').value.trim(),
+    password:$('setupPassword').value
+   })
+  });
+
+  $('setupForm').reset();
+  $('setupView').classList.add('hidden');
   $('loginView').classList.remove('hidden');
-  $('appView').classList.add('hidden');
+
+  $('username').value=username;
+  $('loginError').textContent=
+   'تم إنشاء المدير بنجاح. سجل الدخول بكلمة المرور التي اخترتها.';
+
+ }catch(err){
+  $('setupError').textContent=err.message;
+ }finally{
+  if(btn)btn.disabled=false;
+ }
+});
+
+(async()=>{
+ $('appView').classList.add('hidden');
+ $('loginView').classList.add('hidden');
+ $('setupView').classList.add('hidden');
+
+ try{
+  const status=await api('setup-status');
+
+  if(status.setupRequired){
+   $('setupView').classList.remove('hidden');
+   return;
+  }
+
+  try{
+   await api('me');
+   await startApp();
+  }catch{
+   $('loginView').classList.remove('hidden');
+  }
+
+ }catch(err){
+  $('loginView').classList.remove('hidden');
+  $('loginError').textContent=
+   'تعذر التحقق من إعداد النظام: '+err.message;
  }
 })();
 
