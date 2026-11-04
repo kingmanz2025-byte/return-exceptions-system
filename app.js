@@ -30,6 +30,7 @@ function setPage(p){
  if(p==='transfers')renderTransfers();
  if(p==='users')renderUsers();
  if(p==='audit')renderAudit();
+ if(p==='reports')loadReports();
 }
 
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));
@@ -58,6 +59,7 @@ async function startApp(){
  $('userInfo').textContent=`${me.user.display_name||me.user.username} • ${roleName(me.user.role)}`;
  $('usersNav').classList.toggle('hidden',me.user.role!=='system_admin');
  $('auditNav').classList.toggle('hidden',!['system_admin','report_viewer'].includes(me.user.role));
+ $('reportsNav').classList.toggle('hidden',!['system_admin','report_viewer'].includes(me.user.role));
  $('newRequestBtn').classList.toggle('hidden',me.user.role==='report_viewer');
  $('transferCreate').classList.toggle('hidden',!['branch_user','system_admin'].includes(me.user.role));
  await refreshAll();
@@ -99,7 +101,7 @@ async function refreshAll(){
 }
 
 function fillBranchSelects(){
- const own=state.branches.map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
+ const own=[...state.branches].sort((a,b)=>Number(a.id)-Number(b.id)).map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
  ['reqBranch','fromBranch','userBranches'].forEach(id=>{const el=$(id);if(el)el.innerHTML=own;});
  updateTransferTargets();
 }
@@ -108,7 +110,7 @@ function updateTransferTargets(){
  const to=$('toBranch');
  if(!from||!to)return;
  const fromId=Number(from.value);
- const targets=state.transferBranches.filter(b=>Number(b.id)!==fromId);
+ const targets=[...state.transferBranches].filter(b=>Number(b.id)!==fromId).sort((a,b)=>Number(a.id)-Number(b.id));
  to.innerHTML=targets.map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('')||'<option value="">لا توجد فروع مستفيدة متاحة</option>';
 }
 
@@ -149,6 +151,8 @@ function renderDashboard(){
 
 $('branchSearch').oninput=renderDashboard;
 $('fromBranch').addEventListener('change',updateTransferTargets);
+$('loadReportsBtn').onclick=loadReports;
+document.querySelectorAll('[data-export]').forEach(b=>b.addEventListener('click',()=>exportReport(b.dataset.export,b.dataset.filename)));
 $('refreshBtn').onclick=refreshAll;
 
 function renderRequests(){
@@ -324,6 +328,27 @@ function renderUsers(){
    <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p>
   </article>
  `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';
+}
+
+async function loadReports(){
+ const period=$('reportPeriod').value||currentPeriod();
+ $('reportPeriod').value=period;
+ try{
+  const d=await api('reports?period='+encodeURIComponent(period));
+  const statusLabel=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
+  $('balanceReportRows').innerHTML=(d.balances||[]).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
+  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.customer_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
+  $('transferReportRows').innerHTML=(d.transfers||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.from_code)} - ${esc(x.from_name)}</td><td>${esc(x.to_code)} - ${esc(x.to_name)}</td><td>${x.quantity}</td><td>${statusLabel(x.status)}</td><td>${esc(x.reason)}</td><td>${esc(x.requester_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decided_at)}</td></tr>`).join('')||'<tr><td colspan="11">لا توجد تحويلات في الفترة المحددة</td></tr>';
+ }catch(e){message(e.message,true)}
+}
+
+function exportReport(tableId,fileName){
+ const table=$(tableId);
+ if(!table)return;
+ const content='<!doctype html><html><head><meta charset="utf-8"></head><body dir="rtl">'+table.outerHTML+'</body></html>';
+ const blob=new Blob(['\\ufeff',content],{type:'application/vnd.ms-excel;charset=utf-8'});
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');a.href=url;a.download=fileName+'-'+($('reportPeriod').value||currentPeriod())+'.xls';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
 
 function renderAudit(){
