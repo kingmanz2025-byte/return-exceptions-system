@@ -242,6 +242,7 @@ export async function onRequest({request,env}) {
 
  if(path==="password-recovery"&&method==="POST"){await ensureRecovery(env);const x=await body(request),name=String(x?.username||"").trim();if(!name)return fail("أدخل اسم المستخدم");const u=await env.DB.prepare("SELECT id FROM users WHERE username=? COLLATE NOCASE AND is_active=1").bind(name).first();await env.DB.prepare("INSERT INTO password_recovery_requests(id,username,user_id) VALUES(?,?,?)").bind(uid(),name,u?.id||null).run();return json({ok:true});}
 
+ await ensureRecovery(env);
  const user=await auth(request,env);
 
  // تسجيل الخروج
