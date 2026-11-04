@@ -294,6 +294,8 @@ export async function onRequest({request,env}) {
 
  // عرض الطلبات
  if(path==="requests"&&method==="GET"){
+  if(user.role==="branch_user"){const own=await env.DB.prepare("SELECT e.*,b.code branch_code,b.name branch_name,u.display_name creator_name FROM exception_requests e JOIN branches b ON b.id=e.branch_id JOIN users u ON u.id=e.created_by WHERE e.created_by=? ORDER BY e.created_at DESC LIMIT 500").bind(user.id).all();return json({ok:true,requests:own.results});}
+  if(user.role!=="system_admin")return fail("غير مصرح",403);
   let sql=
    "SELECT e.*,b.code branch_code,b.name branch_name,u.display_name creator_name FROM exception_requests e JOIN branches b ON b.id=e.branch_id JOIN users u ON u.id=e.created_by";
 
@@ -369,6 +371,7 @@ export async function onRequest({request,env}) {
 
  // عرض التحويلات
  if(path==="transfers"&&method==="GET"){
+  if(user.role!=="system_admin")return fail("مدير النظام فقط",403);
   const rows=await env.DB.prepare(
    "SELECT t.*,f.name from_branch_name, d.name to_branch_name, u.display_name requester_name, dec.display_name decided_by_name FROM quota_transfer_requests t JOIN branches f ON f.id=t.from_branch_id JOIN branches d ON d.id=t.to_branch_id LEFT JOIN users u ON u.id=t.requested_by LEFT JOIN users dec ON dec.id=t.decided_by ORDER BY t.created_at DESC LIMIT 300"
   ).all();
@@ -600,6 +603,7 @@ export async function onRequest({request,env}) {
 
  // لوحة المعلومات
  if(path==="dashboard"&&method==="GET"){
+  if(user.role!=="system_admin")return fail("مدير النظام فقط",403);
   const p=url.searchParams.get("period")||period();
 
   const branches=await env.DB.prepare(
@@ -620,7 +624,7 @@ export async function onRequest({request,env}) {
 
  // التقارير الشاملة
  if(path==="reports"&&method==="GET"){
-  if(!["system_admin","report_viewer"].includes(user.role))return fail("ليس لديك صلاحية عرض التقارير",403);
+  if(user.role!=="system_admin")return fail("مدير النظام فقط",403);
   const p=url.searchParams.get("period")||period();
   if(!/^\d{4}-\d{2}$/.test(p))return fail("صيغة الفترة غير صحيحة");
   const requests=await env.DB.prepare(
@@ -637,7 +641,7 @@ export async function onRequest({request,env}) {
 
  // سجل المراجعة
  if(path==="audit"&&method==="GET"){
-  if(user.role!=="system_admin"&&user.role!=="report_viewer")
+  if(user.role!=="system_admin")
    return fail("غير مصرح",403);
 
   const r=await env.DB.prepare(
