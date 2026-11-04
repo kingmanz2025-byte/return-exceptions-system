@@ -72,10 +72,12 @@ async function startApp(){
  $('reportsNav').classList.toggle('hidden',me.user.role!=='system_admin');
  $('settingsNav')?.classList.toggle('hidden',me.user.role!=='system_admin');
  $('nav').querySelectorAll('button').forEach(b=>{const adminOnly=['transfers','reports','users','audit','settings'].includes(b.dataset.page);b.classList.toggle('hidden',adminOnly&&me.user.role!=='system_admin');});
- $('newRequestBtn').classList.toggle('hidden',me.user.role==='report_viewer');
+ $('newRequestBtn').classList.toggle('hidden',me.user.role!=='system_admin');
+ if(me.user.role==='branch_user'){document.querySelector('#requests .filters')?.classList.add('hidden');$('requestList')?.classList.add('hidden');$('newRequestBtn2')?.classList.add('hidden');}
  $('transferCreate').classList.toggle('hidden',me.user.role!=='system_admin');
  await refreshAll();
  if(me.user.role!=='system_admin')setPage('requests');
+ if(me.user.role==='branch_user')$('requestModal')?.classList.remove('hidden');
 }
 
 async function refreshAll(){
@@ -101,7 +103,7 @@ async function refreshAll(){
   if(state.user.role==='system_admin'){renderDashboard();renderTransfers();}else{renderRequests();}
 
   if(state.user.role==='system_admin'){
-   try{const u=await api('users');state.users=u.users||[]}catch{}
+   try{const u=await api('users');state.users=u.users||[];state.recoveryRequests=u.recoveryRequests||[]}catch{}
    renderUsers();loadAdminBranches();renderRecoveryRequests();
   }
 
@@ -261,8 +263,8 @@ $('requestForm').onsubmit=async e=>{
    })
   });
 
-  $('requestModal').classList.add('hidden');
   e.target.reset();
+  if(state.user.role!=='branch_user')$('requestModal').classList.add('hidden');
   message(`تم إرسال الطلب ${result.id} بنجاح`);
   await refreshAll();
  }catch(err){message(err.message,true)}
@@ -393,7 +395,7 @@ async function loadReports(){
   const d=await api('reports?period='+encodeURIComponent(period));
   const statusLabel=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
   $('balanceReportRows').innerHTML=(d.balances||[]).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
-  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.customer_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
+  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.national_id)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
   $('transferReportRows').innerHTML=(d.transfers||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.from_code)} - ${esc(x.from_name)}</td><td>${esc(x.to_code)} - ${esc(x.to_name)}</td><td>${x.quantity}</td><td>${statusLabel(x.status)}</td><td>${esc(x.reason)}</td><td>${esc(x.requester_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decided_at)}</td></tr>`).join('')||'<tr><td colspan="11">لا توجد تحويلات في الفترة المحددة</td></tr>';
  }catch(e){message(e.message,true)}
 }
