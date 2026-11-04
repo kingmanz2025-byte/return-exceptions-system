@@ -43,7 +43,7 @@ async function auth(req,env){
  const h=await sha(token);
 
  const s=await env.DB.prepare(
-  "SELECT u.id,u.username,u.display_name,u.role,u.is_active FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1"
+  "SELECT u.id,u.username,u.display_name,u.role,u.is_active,u.must_change_password FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1"
  ).bind(h,new Date().toISOString()).first();
 
  return s||null;
@@ -196,6 +196,7 @@ export async function onRequest({request,env}) {
 
  // تسجيل الدخول
  if(path==="login"&&method==="POST"){
+  await ensureRecovery(env);
   const x=await body(request);
 
   if(!x?.username||!x?.password)
@@ -227,7 +228,8 @@ export async function onRequest({request,env}) {
     id:u.id,
     username:u.username,
     displayName:u.display_name,
-    role:u.role
+    role:u.role,
+    mustChangePassword:!!u.must_change_password
    }
   }),{
    headers:{
@@ -260,7 +262,9 @@ export async function onRequest({request,env}) {
  }
 
  if(!user)return fail("يلزم تسجيل الدخول",401);
+ if(user.must_change_password && !["me","change-password","logout"].includes(path))return fail("يجب تغيير كلمة المرور المؤقتة أولاً",403);
 
+ if(path==="change-password"&&method==="POST"){const x=await body(request);if(typeof x?.password!=="string"||x.password.length<12)return fail("كلمة المرور الجديدة يجب ألا تقل عن 12 حرفًا");const salt=b64u(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(x.password,salt);await env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,must_change_password=0 WHERE id=?").bind(hash,salt,user.id).run();await audit(env,user,"password_changed","user",user.id,{});return json({ok:true});}
  // بيانات المستخدم الحالي
  if(path==="me"&&method==="GET"){
   const access=await env.DB.prepare(
