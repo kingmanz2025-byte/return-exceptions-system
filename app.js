@@ -346,7 +346,7 @@ function exportReport(tableId,fileName){
  const table=$(tableId);
  if(!table)return;
  const content='<!doctype html><html><head><meta charset="utf-8"></head><body dir="rtl">'+table.outerHTML+'</body></html>';
- const blob=new Blob(['\\ufeff',content],{type:'application/vnd.ms-excel;charset=utf-8'});
+ const blob=new Blob(['\ufeff',content],{type:'application/vnd.ms-excel;charset=utf-8'});
  const url=URL.createObjectURL(blob);
  const a=document.createElement('a');a.href=url;a.download=fileName+'-'+($('reportPeriod').value||currentPeriod())+'.xls';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
 }
