@@ -738,3 +738,17 @@ footer {
     padding: 12px;
   }
 }
+
+/* RANEEN identity refresh */
+:root{--blue:#e51d2a;--navy:#171717;--gold:#d6a52b;--line:#eadfd5;--muted:#777}
+body{background:radial-gradient(circle at 85% 0%,#fff0e8 0,transparent 32%),#f7f5f2;color:#222;font-family:Tahoma,Arial,sans-serif}
+header{background:#111!important;color:#fff;border-bottom:3px solid #e51d2a;box-shadow:0 10px 30px #0002}
+.raneen-logo{width:108px;height:62px;border-radius:14px;background:#fff!important;color:#ed1c2e!important;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 8px 25px #0001}
+.raneen-logo span{font-size:34px;font-weight:900;line-height:1.05;letter-spacing:-2px}.raneen-logo small{font-size:8px;font-weight:bold;letter-spacing:3px;color:#333}
+.login-card,.panel,.item,.metrics article{border:1px solid #eddfd2;border-radius:18px;box-shadow:0 10px 30px #25160d0b;background:#fff}
+nav{border-radius:16px;background:#fff;box-shadow:0 6px 24px #0000000a}
+nav button.active,button.primary{background:linear-gradient(135deg,#ed1c2e,#b80e1b);color:#fff;box-shadow:0 7px 18px #e51d2a30}
+.metrics article{position:relative;overflow:hidden}.metrics article:before{content:"";position:absolute;right:0;top:0;bottom:0;width:5px;background:linear-gradient(#e51d2a,#d6a52b)}
+.metrics b{color:#c91524;font-size:30px}
+input,select,textarea{border:1px solid #e7d9ce;border-radius:10px}input:focus,select:focus,textarea:focus{outline:2px solid #e51d2a25;border-color:#e51d2a}
+button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brightness(.97)}

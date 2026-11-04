@@ -1,5 +1,5 @@
 const $=id=>document.getElementById(id);
-const state={user:null,branches:[],requests:[],transfers:[],users:[],audit:[],dashboard:null};
+const state={user:null,branches:[],transferBranches:[],requests:[],transfers:[],users:[],audit:[],dashboard:null};
 
 const roleName=r=>({system_admin:'مدير النظام',branch_user:'مسؤول الفرع',report_viewer:'مراقب التقارير'}[r]||r);
 const statusName=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
@@ -78,6 +78,9 @@ async function refreshAll(){
    }catch(e){state.dashboard=null}
   }else{state.dashboard=null}
 
+  if(state.user.role==='branch_user'){
+   try{const tb=await api('transfer-branches');state.transferBranches=tb.branches||[];}catch(e){state.transferBranches=[];message(e.message,true)}
+  }else{state.transferBranches=state.branches;}
   fillBranchSelects();
   renderDashboard();
   renderRequests();
@@ -96,11 +99,10 @@ async function refreshAll(){
 }
 
 function fillBranchSelects(){
- const opts=state.branches.map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
- ['reqBranch','fromBranch','toBranch','userBranches'].forEach(id=>{
-  const el=$(id);
-  if(el)el.innerHTML=opts;
- });
+ const own=state.branches.map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
+ const target=state.transferBranches.filter(b=>!state.branches.some(x=>Number(x.id)===Number(b.id))).map(b=>`<option value="${b.id}">${esc(b.name)} (${esc(b.code)})</option>`).join('');
+ ['reqBranch','fromBranch','userBranches'].forEach(id=>{const el=$(id);if(el)el.innerHTML=own;});
+ const to=$('toBranch');if(to)to.innerHTML=target||'<option value="">لا توجد فروع مستفيدة متاحة</option>';
 }
 
 function renderDashboard(){
@@ -156,6 +158,7 @@ function renderRequests(){
     <div>
      <h3>${esc(r.id)} • ${esc(r.branch_name)} (${esc(r.branch_code)})</h3>
      <p>الفاتورة: ${esc(r.invoice_number)} • ${esc(r.created_at)}</p>
+     <p><b>مقدم الطلب:</b> ${esc(r.creator_name||'غير محدد')}</p>
     </div>
     <span class="pill ${r.status}">${statusName(r.status)}</span>
    </div>
@@ -257,6 +260,9 @@ function renderTransfers(){
    <p>${esc(t.from_branch_name)} ← مانح | ${esc(t.to_branch_name)} ← مستفيد</p>
    <p>الكمية: ${t.quantity} • الفترة: ${esc(t.period)}</p>
    <p>${esc(t.reason)}</p>
+   <p><b>مقدم التحويل:</b> ${esc(t.requester_name||'غير محدد')} • <b>تاريخ الطلب:</b> ${esc(t.created_at||'')}</p>
+   ${t.decided_by_name?`<p><b>صاحب القرار:</b> ${esc(t.decided_by_name)} • ${esc(t.decided_at||'')}</p>`:''}
+   ${t.decision_note?`<p><b>ملاحظة القرار:</b> ${esc(t.decision_note)}</p>`:''}
    ${state.user.role==='system_admin'&&t.status==='pending'?`
     <div class="itemactions">
      <button class="approve" data-transfer="approve" data-id="${esc(t.id)}">اعتماد</button>

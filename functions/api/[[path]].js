@@ -272,6 +272,13 @@ export async function onRequest({request,env}) {
   });
  }
 
+ // قائمة الفروع النشطة لاختيار الفرع المستفيد في طلب تحويل الحصة
+ if(path==="transfer-branches"&&method==="GET"){
+  if(user.role!=="branch_user")return fail("هذه الخدمة لمسؤولي الفروع فقط",403);
+  const rows=await env.DB.prepare("SELECT id,code,name,monthly_quota FROM branches WHERE is_active=1 ORDER BY name").all();
+  return json({ok:true,branches:rows.results});
+ }
+
  // الفروع
  if(path==="branches"&&method==="GET"){
   const rows=user.role==="system_admin"
@@ -363,7 +370,7 @@ export async function onRequest({request,env}) {
  // عرض التحويلات
  if(path==="transfers"&&method==="GET"){
   const rows=await env.DB.prepare(
-   "SELECT t.*,f.name from_branch_name, d.name to_branch_name FROM quota_transfer_requests t JOIN branches f ON f.id=t.from_branch_id JOIN branches d ON d.id=t.to_branch_id ORDER BY t.created_at DESC LIMIT 300"
+   "SELECT t.*,f.name from_branch_name, d.name to_branch_name, u.display_name requester_name, dec.display_name decided_by_name FROM quota_transfer_requests t JOIN branches f ON f.id=t.from_branch_id JOIN branches d ON d.id=t.to_branch_id LEFT JOIN users u ON u.id=t.requested_by LEFT JOIN users dec ON dec.id=t.decided_by ORDER BY t.created_at DESC LIMIT 300"
   ).all();
 
   return json({ok:true,transfers:rows.results});
@@ -390,6 +397,9 @@ export async function onRequest({request,env}) {
   ){
    return fail("بيانات التحويل غير صحيحة أو الفرع غير مصرح به");
   }
+
+  const target=await env.DB.prepare("SELECT id FROM branches WHERE id=? AND is_active=1").bind(to).first();
+  if(!target)return fail("الفرع المستفيد غير موجود أو غير نشط");
 
   await ensureBalance(env,from,p);
   await ensureBalance(env,to,p);
