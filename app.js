@@ -163,15 +163,6 @@ function renderDashboard(){
  if($('approvalBar'))$('approvalBar').style.width=pct+'%';
  if($('pendingBar'))$('pendingBar').style.width=(total?Math.round(pending/total*100):0)+'%';
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
- const q=($('branchSearch').value||'').toLowerCase();
- const usedFilter=$('branchUsageSearch')?.value||'';
- if($('branchRanking')){const counts={};req.forEach(r=>{const k=r.branch_id||r.branch_code;counts[k]=(counts[k]||0)+1;});const ranked=branches.map(b=>({...b,count:counts[b.id]||counts[b.code]||0})).filter(b=>b.count>0).sort((a,b)=>b.count-a.count).slice(0,8);const max=ranked[0]?.count||1;$('branchRanking').innerHTML=ranked.map((b,i)=>'<div class="health-line"><span>'+ (i+1)+'. '+esc(b.name)+' ('+b.count+' طلب)</span><b>'+Math.round(b.count/max*100)+'%</b><div class="track"><i style="width:'+Math.round(b.count/max*100)+'%"></i></div></div>').join('')||'<p>لا توجد فروع لديها طلبات في الفترة.</p>';}
- $('branchRows').innerHTML=branches
-  .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q)&&(!usedFilter||Number(b.used||0)>=Number(usedFilter)))
-  .map(b=>{
-   const base=Number(b.quota??b.monthly_quota??3),inc=Number(b.transferred_in||0),out=Number(b.transferred_out||0),u=Number(b.used||0),av=base+inc-out-u;
-   return `<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td>${base}</td><td>${inc}</td><td>${out}</td><td>${u}</td><td><b class="${av<0?'negative':''}">${av}</b></td></tr>`;
-  }).join('')||'<tr><td colspan="7">لا توجد فروع متاحة لحسابك</td></tr>';
  if($('recentRequests')){
   $('recentRequests').innerHTML=[...req].sort((x,y)=>String(y.created_at||'').localeCompare(String(x.created_at||''))).slice(0,5).map(r=>`
    <div class="dash-row"><div><b>${esc(r.branch_name||'فرع غير محدد')}</b><small>${esc(r.id)} · ${esc(r.creator_name||'')}</small></div><span class="pill ${esc(r.status)}">${statusName(r.status)}</span><strong>${money(r.amount)} ج.م</strong></div>`
@@ -183,7 +174,6 @@ function renderDashboard(){
    :'<p class="muted">تظهر متابعة التحويلات التفصيلية لمدير النظام ومراقب التقارير.</p>';
  }
 }
-$('branchSearch').oninput=renderDashboard;
 $('fromBranch').addEventListener('change',updateTransferTargets);
 $('loadReportsBtn').onclick=loadReports;
 document.querySelectorAll('[data-report-open]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-report-panel]').forEach(p=>p.classList.toggle('hidden',p.dataset.reportPanel!==b.dataset.reportOpen));loadReports();}));
