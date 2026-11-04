@@ -158,9 +158,9 @@ function renderDashboard(){
  if($('approvalRate'))$('approvalRate').textContent=pct+'%';
  if($('approvalBar'))$('approvalBar').style.width=pct+'%';
  const usage={};req.forEach(r=>{const k=String(r.branch_id||r.branch_code||'');usage[k]=(usage[k]||0)+1;});
+ const usageTotal=Object.values(usage).reduce((sum,count)=>sum+count,0);
  const ranked=branches.map(b=>({...b,count:usage[String(b.id)]||usage[String(b.code)]||0})).filter(b=>b.count>0).sort((a,b)=>b.count-a.count).slice(0,8);
- const maxUsage=ranked[0]?.count||1;
- if($('branchRanking'))$('branchRanking').innerHTML=ranked.map((b,i)=>{const n=Math.round(b.count/maxUsage*100);return '<div class="health-line"><span>'+(i+1)+'. '+esc(b.name)+' ('+b.count+' طلب)</span><b>'+n+'%</b><div class="track"><i style="width:'+n+'%"></i></div></div>';}).join('')||'<p class="muted">لا توجد فروع لديها طلبات.</p>';
+ if($('branchRanking'))$('branchRanking').innerHTML=ranked.map((b,i)=>{const n=usageTotal?Number((b.count/usageTotal*100).toFixed(1)):0;return '<div class="health-line"><span>'+(i+1)+'. '+esc(b.name)+' ('+b.count+' طلب)</span><b>'+n+'%</b><div class="track"><i style="width:'+n+'%"></i></div></div>';}).join('')||'<p class="muted">لا توجد فروع لديها طلبات.</p>';
  if($('pendingBar'))$('pendingBar').style.width=(total?Math.round(pending/total*100):0)+'%';
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
  if($('recentRequests')){
