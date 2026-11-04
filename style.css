@@ -759,3 +759,12 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
 .login-card .raneen-logo-img{width:min(230px,72%);max-height:122px;margin:0 auto 20px}
 .brand .raneen-logo-img{width:116px;max-height:62px}
 @media(max-width:420px){.brand .raneen-logo-img{width:88px;max-height:48px}.login-card .raneen-logo-img{width:min(205px,72%)}}
+
+
+/* Reports */
+.report-filter{display:flex;align-items:end;gap:14px;flex-wrap:wrap}
+.report-filter label{display:flex;flex-direction:column;gap:8px;min-width:220px}
+#reports .panel{margin-bottom:20px}
+#reports .panelhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+#reports table{min-width:980px}
+#reports .tablewrap{overflow:auto}

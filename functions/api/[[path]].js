@@ -275,7 +275,7 @@ export async function onRequest({request,env}) {
  // قائمة الفروع النشطة لاختيار الفرع المستفيد في طلب تحويل الحصة
  if(path==="transfer-branches"&&method==="GET"){
   if(!["branch_user","system_admin"].includes(user.role))return fail("ليس لديك صلاحية عرض الفروع للتحويل",403);
-  const rows=await env.DB.prepare("SELECT id,code,name,monthly_quota FROM branches WHERE is_active=1 ORDER BY name").all();
+  const rows=await env.DB.prepare("SELECT id,code,name,monthly_quota FROM branches WHERE is_active=1 ORDER BY id").all();
   return json({ok:true,branches:rows.results});
  }
 
@@ -616,6 +616,23 @@ export async function onRequest({request,env}) {
    branches:branches.results,
    counts
   });
+ }
+
+ // التقارير الشاملة
+ if(path==="reports"&&method==="GET"){
+  if(!["system_admin","report_viewer"].includes(user.role))return fail("ليس لديك صلاحية عرض التقارير",403);
+  const p=url.searchParams.get("period")||period();
+  if(!/^\\d{4}-\\d{2}$/.test(p))return fail("صيغة الفترة غير صحيحة");
+  const requests=await env.DB.prepare(
+   "SELECT e.id,e.period,e.invoice_number,e.customer_name,e.amount,e.reason,e.details,e.status,e.decision_note,e.created_at,b.code branch_code,b.name branch_name,cu.display_name creator_name,du.display_name decision_maker FROM exception_requests e JOIN branches b ON b.id=e.branch_id LEFT JOIN users cu ON cu.id=e.created_by LEFT JOIN users du ON du.id=e.decided_by WHERE e.period=? ORDER BY b.id,e.created_at DESC"
+  ).bind(p).all();
+  const transfers=await env.DB.prepare(
+   "SELECT t.id,t.period,t.quantity,t.reason,t.status,t.created_at,t.decided_at,t.decision_note,f.code from_code,f.name from_name,d.code to_code,d.name to_name,ru.display_name requester_name,du.display_name decision_maker FROM quota_transfer_requests t JOIN branches f ON f.id=t.from_branch_id JOIN branches d ON d.id=t.to_branch_id LEFT JOIN users ru ON ru.id=t.requested_by LEFT JOIN users du ON du.id=t.decided_by WHERE t.period=? ORDER BY f.id,d.id,t.created_at DESC"
+  ).bind(p).all();
+  const balances=await env.DB.prepare(
+   "SELECT b.code,b.name,COALESCE(m.quota,b.monthly_quota) quota,COALESCE(m.transferred_in,0) transferred_in,COALESCE(m.transferred_out,0) transferred_out,COALESCE(m.used,0) used,COALESCE(m.quota,b.monthly_quota)+COALESCE(m.transferred_in,0)-COALESCE(m.transferred_out,0)-COALESCE(m.used,0) available FROM branches b LEFT JOIN monthly_branch_balances m ON m.branch_id=b.id AND m.period=? WHERE b.is_active=1 ORDER BY b.id"
+  ).bind(p).all();
+  return json({ok:true,period:p,requests:requests.results,transfers:transfers.results,balances:balances.results});
  }
 
  // سجل المراجعة
