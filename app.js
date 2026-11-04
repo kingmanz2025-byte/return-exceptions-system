@@ -1,7 +1,7 @@
 const $=id=>document.getElementById(id);
 const state={user:null,branches:[],transferBranches:[],requests:[],transfers:[],users:[],audit:[],dashboard:null};
 
-const roleName=r=>({system_admin:'مدير النظام',branch_user:'مسؤول الفرع',report_viewer:'مراقب التقارير'}[r]||r);
+const roleName=r=>({system_admin:'مدير النظام',branch_user:'مستخدم عادي',report_viewer:'مراقب التقارير'}[r]||r);
 const statusName=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>Number(n||0).toLocaleString('ar-EG',{maximumFractionDigits:2});
@@ -28,14 +28,15 @@ function message(s,error=false){
 }
 
 function setPage(p){
+ if(state.user?.role!=='system_admin'&&p!=='requests'){p='requests';}
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));
  document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
- if(p==='dashboard')renderDashboard();
+ if(p==='dashboard'&&state.user?.role==='system_admin')renderDashboard();
  if(p==='requests')renderRequests();
- if(p==='transfers')renderTransfers();
- if(p==='users')renderUsers();
- if(p==='audit')renderAudit();
- if(p==='reports')loadReports();
+ if(p==='transfers'&&state.user?.role==='system_admin')renderTransfers();
+ if(p==='users'&&state.user?.role==='system_admin')renderUsers();
+ if(p==='audit'&&state.user?.role==='system_admin')renderAudit();
+ if(p==='reports'&&state.user?.role==='system_admin')loadReports();
 }
 
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));
@@ -63,22 +64,29 @@ async function startApp(){
  $('loginView').classList.add('hidden');
  $('appView').classList.remove('hidden');
  $('userInfo').textContent=`${me.user.display_name||me.user.username} • ${roleName(me.user.role)}`;
+ if(me.user.must_change_password){$('passwordChangeModal')?.classList.remove('hidden');}
  $('usersNav').classList.toggle('hidden',me.user.role!=='system_admin');
- $('auditNav').classList.toggle('hidden',!['system_admin','report_viewer'].includes(me.user.role));
- $('reportsNav').classList.toggle('hidden',!['system_admin','report_viewer'].includes(me.user.role));
+ $('nav').querySelector('[data-page=dashboard]')?.classList.toggle('hidden',me.user.role!=='system_admin');
+ $('dashboard').classList.toggle('hidden',me.user.role!=='system_admin');
+ $('auditNav').classList.toggle('hidden',me.user.role!=='system_admin');
+ $('reportsNav').classList.toggle('hidden',me.user.role!=='system_admin');
+ $('settingsNav')?.classList.toggle('hidden',me.user.role!=='system_admin');
+ $('nav').querySelectorAll('button').forEach(b=>{const adminOnly=['transfers','reports','users','audit','settings'].includes(b.dataset.page);b.classList.toggle('hidden',adminOnly&&me.user.role!=='system_admin');});
  $('newRequestBtn').classList.toggle('hidden',me.user.role==='report_viewer');
- $('transferCreate').classList.toggle('hidden',!['branch_user','system_admin'].includes(me.user.role));
+ $('transferCreate').classList.toggle('hidden',me.user.role!=='system_admin');
  await refreshAll();
+ if(me.user.role!=='system_admin')setPage('requests');
 }
 
 async function refreshAll(){
  try{
-  const [b,r,t]=await Promise.all([api('branches'),api('requests'),api('transfers')]);
+  const [b,r]=await Promise.all([api('branches'),api('requests')]);
+  const t=state.user.role==='system_admin'?await api('transfers'):{transfers:[]};
   state.branches=b.branches||[];
   state.requests=r.requests||[];
   state.transfers=t.transfers||[];
 
-  if(state.user.role==='system_admin'||state.user.role==='report_viewer'){
+  if(state.user.role==='system_admin'){
    try{
     const d=await api('dashboard?period='+currentPeriod());
     state.dashboard=d;
@@ -86,20 +94,18 @@ async function refreshAll(){
    }catch(e){state.dashboard=null}
   }else{state.dashboard=null}
 
-  if(['branch_user','system_admin'].includes(state.user.role)){
+  if(state.user.role==='system_admin'){
    try{const tb=await api('transfer-branches');state.transferBranches=tb.branches||[];}catch(e){state.transferBranches=[];message(e.message,true)}
   }else{state.transferBranches=[];}
   fillBranchSelects();
-  renderDashboard();
-  renderRequests();
-  renderTransfers();
+  if(state.user.role==='system_admin'){renderDashboard();renderTransfers();}else{renderRequests();}
 
   if(state.user.role==='system_admin'){
    try{const u=await api('users');state.users=u.users||[]}catch{}
-   renderUsers();
+   renderUsers();loadAdminBranches();renderRecoveryRequests();
   }
 
-  if(['system_admin','report_viewer'].includes(state.user.role)){
+  if(state.user.role==='system_admin'){
    try{const a=await api('audit');state.audit=a.logs||[]}catch{}
    renderAudit();
   }
@@ -156,8 +162,10 @@ function renderDashboard(){
  if($('pendingBar'))$('pendingBar').style.width=(total?Math.round(pending/total*100):0)+'%';
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
  const q=($('branchSearch').value||'').toLowerCase();
+ const usedFilter=$('branchUsageSearch')?.value||'';
+ if($('branchRanking')){const counts={};req.forEach(r=>{const k=r.branch_id||r.branch_code;counts[k]=(counts[k]||0)+1;});$('branchRanking').innerHTML=[...branches].map(b=>({...b,count:counts[b.id]||counts[b.code]||0})).sort((a,b)=>b.count-a.count).slice(0,8).map((b,i)=>'<div class="dash-row"><b>'+(i+1)+'. '+esc(b.name)+'</b><span>'+b.count+' طلب</span></div>').join('')||'<p>لا توجد بيانات.</p>';}
  $('branchRows').innerHTML=branches
-  .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q))
+  .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q)&&(!usedFilter||Number(b.used||0)>=Number(usedFilter)))
   .map(b=>{
    const base=Number(b.quota??b.monthly_quota??3),inc=Number(b.transferred_in||0),out=Number(b.transferred_out||0),u=Number(b.used||0),av=base+inc-out-u;
    return `<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td>${base}</td><td>${inc}</td><td>${out}</td><td>${u}</td><td><b class="${av<0?'negative':''}">${av}</b></td></tr>`;
@@ -168,7 +176,7 @@ function renderDashboard(){
   ).join('')||'<p class="muted">لا توجد طلبات مسجلة حتى الآن.</p>';
  }
  if($('recentTransfers')){
-  $('recentTransfers').innerHTML=['system_admin','report_viewer'].includes(state.user?.role)
+  $('recentTransfers').innerHTML=state.user?.role==='system_admin'
    ?[...transfers].slice(0,5).map(t=>`<div class="dash-row"><div><b>${esc(t.from_branch_name||'')} ← ${esc(t.to_branch_name||'')}</b><small>${esc(t.id)} · ${esc(t.created_at||'')}</small></div><span class="pill ${esc(t.status)}">${statusName(t.status)}</span><strong>${Number(t.quantity||0)} حصة</strong></div>`).join('')||'<p class="muted">لا توجد تحويلات مسجلة.</p>'
    :'<p class="muted">تظهر متابعة التحويلات التفصيلية لمدير النظام ومراقب التقارير.</p>';
  }
@@ -218,9 +226,8 @@ function renderRequests(){
 $('requestSearch').oninput=renderRequests;
 $('statusFilter').onchange=renderRequests;
 
-$('newRequestBtn').onclick=()=>{
- $('requestModal').classList.remove('hidden');
-};
+$('newRequestBtn').onclick=()=>{ $('requestModal').classList.remove('hidden'); };
+$('newRequestBtn2').onclick=()=>{ $('requestModal').classList.remove('hidden'); };
 
 $('closeModal').onclick=()=>{
  $('requestModal').classList.add('hidden');
@@ -342,6 +349,19 @@ $('userForm').onsubmit=async e=>{
  }catch(err){message(err.message,true)}
 };
 
+
+$('forgotPasswordBtn')?.addEventListener('click',async()=>{const username=prompt('اكتب اسم المستخدم لطلب استعادة كلمة المرور:');if(!username)return;try{await api('password-recovery',{method:'POST',body:JSON.stringify({username})});message('إذا كان الحساب موجودًا، تم تسجيل طلب الاستعادة لمراجعة مدير النظام.');}catch(e){message(e.message,true);}});
+$('passwordChangeForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('change-password',{method:'POST',body:JSON.stringify({password:$('newOwnPassword').value})});$('passwordChangeModal').classList.add('hidden');message('تم تغيير كلمة المرور بنجاح');await startApp();}catch(err){message(err.message,true);}});
+async function loadAdminBranches(){try{const d=await api('admin/branches');$('adminBranchList').innerHTML=(d.branches||[]).map(b=>'<article class="item"><b>'+esc(b.code)+' - '+esc(b.name)+'</b><p>الحصة: '+b.monthly_quota+' • '+(b.is_active?'نشط':'موقوف')+'</p><div class="itemactions"><button data-edit-branch="'+b.id+'">تعديل</button><button data-toggle-branch="'+b.id+'">'+(b.is_active?'إيقاف':'تفعيل')+'</button></div></article>').join('');document.querySelectorAll('[data-edit-branch]').forEach(btn=>btn.onclick=async()=>{const b=d.branches.find(x=>String(x.id)===btn.dataset.editBranch);const code=prompt('كود الفرع',b.code);if(code===null)return;const name=prompt('اسم الفرع',b.name);if(name===null)return;const quota=prompt('الحصة الأساسية',b.monthly_quota);if(quota===null)return;try{await api('admin/branches/'+b.id,{method:'PATCH',body:JSON.stringify({code,name,monthlyQuota:Number(quota)})});await loadAdminBranches();await refreshAll();message('تم تحديث الفرع');}catch(e){message(e.message,true);}});document.querySelectorAll('[data-toggle-branch]').forEach(btn=>btn.onclick=async()=>{try{await api('admin/branches/'+btn.dataset.toggleBranch,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await loadAdminBranches();await refreshAll();}catch(e){message(e.message,true);}});}catch(e){message(e.message,true);}}
+$('branchForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('admin/branches',{method:'POST',body:JSON.stringify({code:$('branchCode').value.trim(),name:$('branchName').value.trim(),monthlyQuota:Number($('branchQuota').value)})});e.target.reset();message('تمت إضافة الفرع');await loadAdminBranches();await refreshAll();}catch(err){message(err.message,true);}});
+
+
+function renderRecoveryRequests(){
+ const box=$('recoveryRequestList');if(!box)return;
+ box.innerHTML=(state.recoveryRequests||[]).map(r=>'<article class="item"><b>'+esc(r.username)+'</b><p>'+esc(r.requested_at)+'</p><button data-recovery="'+esc(r.id)+'">تعيين كلمة مرور مؤقتة</button></article>').join('')||'<p>لا توجد طلبات استعادة معلقة.</p>';
+ document.querySelectorAll('[data-recovery]').forEach(b=>b.onclick=async()=>{const p=prompt('كلمة مرور مؤقتة (12 حرفًا على الأقل)');if(!p)return;try{await api('password-recovery/'+b.dataset.recovery,{method:'POST',body:JSON.stringify({decision:'approve',temporaryPassword:p})});message('تمت الموافقة وتعيين كلمة مرور مؤقتة');await refreshAll();}catch(e){message(e.message,true);}});
+}
+
 function renderUsers(){
  $('userList').innerHTML=state.users.map(u=>`
   <article class="item">
@@ -349,9 +369,9 @@ function renderUsers(){
     <h3>${esc(u.display_name)}</h3>
     <span class="pill">${roleName(u.role)}</span>
    </div>
-   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p>
+   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions"><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button></div>
   </article>
- `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';
+ `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
 }
 
 async function loadReports(){
@@ -454,3 +474,28 @@ $('setupForm').addEventListener('submit',async e=>{
 if('serviceWorker'in navigator){
  window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
 }
+
+// Egypt live clock and prayer times
+async function updateSiteClock(){const d=new Date();if($('liveClock'))$('liveClock').textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(d);if($('liveDate'))$('liveDate').textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(d)+' • '+new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{timeZone:'Africa/Cairo',year:'numeric',month:'long',day:'numeric'}).format(d);}
+async function updatePrayerTimes(){try{const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude=30.0444&longitude=31.2357&method=5');const j=await r.json(),t=j.data.timings;const n=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];const m=new Date().getHours()*60+new Date().getMinutes();let next=n.map(x=>({name:x[0],v:t[x[1]]})).map(x=>({...x,min:Number(x.v.slice(0,2))*60+Number(x.v.slice(3,5))})).find(x=>x.min>m);if(!next)next={name:'الفجر',min:Number(t.Fajr.slice(0,2))*60+Number(t.Fajr.slice(3,5))+1440};const left=next.min-m;$('prayerLine').textContent='الصلاة القادمة: '+next.name+' بعد '+Math.floor(left/60)+' س '+left%60+' د';}catch{$('prayerLine').textContent='مواقيت الصلاة – القاهرة';}}
+setInterval(updateSiteClock,1000);updateSiteClock();updatePrayerTimes();setInterval(updatePrayerTimes,6*60*60*1000);
+
+async function refreshHeaderClock(){
+ const now=new Date();
+ const el=document.getElementById('liveClock'),date=document.getElementById('liveDate');
+ if(el)el.textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(now);
+ if(date)date.textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(now)+' • '+new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{timeZone:'Africa/Cairo',year:'numeric',month:'long',day:'numeric'}).format(now);
+}
+async function refreshPrayerTimes(){
+ try{
+  const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude=30.0444&longitude=31.2357&method=5');
+  const j=await r.json(),t=j.data.timings,now=new Date(),m=now.getHours()*60+now.getMinutes();
+  const items=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];
+  let next=null;
+  for(const [name,key] of items){const [hh,mm]=t[key].split(':').map(Number),v=hh*60+mm;if(v>m){next={name,min:v};break;}}
+  if(!next){const [hh,mm]=t.Fajr.split(':').map(Number);next={name:'الفجر',min:hh*60+mm+1440};}
+  const remain=next.min-m,box=document.getElementById('prayerLine');
+  if(box)box.textContent='الصلاة القادمة: '+next.name+' بعد '+Math.floor(remain/60)+' س '+(remain%60)+' د';
+ }catch{const box=document.getElementById('prayerLine');if(box)box.textContent='مواقيت الصلاة – القاهرة';}
+}
+refreshHeaderClock();setInterval(refreshHeaderClock,1000);refreshPrayerTimes();setInterval(refreshPrayerTimes,6*60*60*1000);

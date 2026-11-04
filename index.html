@@ -57,6 +57,7 @@
     <input id="password" type="password" autocomplete="current-password" required>
    </label>
    <button class="primary" type="submit">تسجيل الدخول</button>
+   <button class="ghost" type="button" id="forgotPasswordBtn">نسيت كلمة المرور؟</button>
    <p id="loginError" class="error-text"></p>
   </form>
  </div>
@@ -72,6 +73,7 @@
    <small>نظام إدارة ومتابعة الفروع</small>
   </div>
  </div>
+ <div class="header-clock"><strong id="liveClock">--:--:--</strong><span id="liveDate"></span><span id="prayerLine">مواقيت الصلاة – القاهرة</span></div>
  <div class="header-actions">
   <span id="userInfo"></span>
   <button class="ghost" id="refreshBtn">تحديث البيانات</button>
@@ -79,14 +81,15 @@
  </div>
 </header>
 
-<nav id="nav">
+<aside class="sidebar"><div class="sidebar-caption">القائمة الرئيسية</div><nav id="nav">
  <button class="active" data-page="dashboard">الرئيسية</button>
  <button data-page="requests">طلبات الاستثناء</button>
  <button data-page="transfers">تحويل الحصص</button>
  <button data-page="reports" id="reportsNav" class="hidden">التقارير</button>
  <button data-page="users" id="usersNav" class="hidden">المستخدمون</button>
+ <button data-page="settings" id="settingsNav" class="hidden">إعدادات النظام</button>
  <button data-page="audit" id="auditNav" class="hidden">سجل التدقيق</button>
-</nav>
+</nav><div class="sidebar-foot">RANEEN • RETURNS</div></aside>
 
 <main>
 
@@ -133,10 +136,11 @@
   </section>
  </div>
 
+ <div class="panel"><div class="panelhead"><h2>الفروع الأكثر استخدامًا للاستثناءات</h2><small>ترتيب حسب عدد الطلبات في الفترة</small></div><div id="branchRanking" class="dashboard-feed"></div></div>
  <div class="panel">
   <div class="panelhead">
    <h2>أرصدة الفروع</h2>
-   <input id="branchSearch" placeholder="ابحث بكود الفرع أو اسمه">
+   <input id="branchSearch" placeholder="ابحث بكود الفرع أو اسمه"><input id="branchUsageSearch" type="number" min="0" placeholder="تصفية حسب المستخدم">
   </div>
   <div class="tablewrap">
    <table>
@@ -255,10 +259,11 @@
 
  <div class="panel">
   <h2>المستخدمون المسجلون</h2>
-  <div id="userList" class="cards"></div>
+  <div id="userList" class="cards"></div><h2>طلبات استعادة كلمة المرور</h2><div id="recoveryRequestList" class="cards"></div>
  </div>
 </section>
 
+<section id="settings" class="page"><div class="pagehead"><div><h1>إعدادات النظام</h1><p>إدارة الفروع والحصص الأساسية</p></div></div><div class="panel"><h2>إضافة فرع</h2><form id="branchForm" class="formgrid"><label>كود الفرع<input id="branchCode" required></label><label>اسم الفرع<input id="branchName" required></label><label>الحصة الأساسية<input id="branchQuota" type="number" min="0" step="1" value="3" required></label><button class="primary" type="submit">إضافة الفرع</button></form></div><div class="panel"><h2>الفروع المسجلة</h2><div id="adminBranchList" class="cards"></div></div></section>
 <section id="audit" class="page">
  <div class="pagehead">
   <div>
@@ -271,6 +276,7 @@
 
 </main>
 
+<div class="modal hidden" id="passwordChangeModal"><div class="modalbox"><h2>تغيير كلمة المرور المؤقتة</h2><p>يجب تعيين كلمة مرور جديدة قبل استخدام النظام.</p><form id="passwordChangeForm"><label>كلمة المرور الجديدة<input id="newOwnPassword" type="password" minlength="12" required></label><button class="primary" type="submit">حفظ كلمة المرور</button></form></div></div>
 <div class="modal hidden" id="requestModal">
  <div class="modalbox">
   <div class="modalhead">
