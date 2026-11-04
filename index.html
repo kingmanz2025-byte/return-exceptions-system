@@ -1,33 +1,260 @@
+
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#123b70"><meta name="description" content="إدارة ومتابعة استثناءات المرتجعات للفروع">
-<link rel="manifest" href="manifest.json"><link rel="stylesheet" href="style.css">
-<title>استثناءات المرتجعات</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#123b70">
+<meta name="description" content="نظام إدارة ومتابعة استثناءات المرتجعات">
+<link rel="manifest" href="./manifest.json">
+<link rel="stylesheet" href="./style.css">
+<title>إدارة استثناءات المرتجعات</title>
 </head>
 <body>
-<header><div class="brand"><div class="logo">↩</div><div><strong>استثناءات المرتجعات</strong><small>إدارة الكاشير • 57 فرعًا</small></div></div><button class="ghost" id="roleToggle">تبديل الدور</button></header>
-<nav id="nav">
-<button class="active" data-page="dashboard">الرئيسية</button><button data-page="requests">الطلبات</button><button data-page="transfer">تحويل الحصص</button><button data-page="reports">التقارير</button><button data-page="audit">سجل التدقيق</button>
-</nav>
-<main>
-<div class="notice" id="roleNotice">وضع إدارة الكاشير — راجع الطلبات واعتمدها.</div>
-<section id="dashboard" class="page active">
-<div class="pagehead"><div><h1>لوحة المتابعة</h1><p>ملخص دورة الاستثناءات للشهر الحالي</p></div><button class="primary" id="newRequestBtn">＋ طلب استثناء</button></div>
-<div class="metrics">
-<article><span>إجمالي الفروع</span><b>57</b></article><article><span>الحصة الأساسية</span><b id="quotaTotal">171</b></article><article><span>طلبات الشهر</span><b id="monthCount">170</b></article><article><span>نسبة الاستخدام</span><b id="usage">99.4%</b></article>
-</div>
-<div class="panel"><div class="panelhead"><h2>ملخص الحالة</h2><span class="muted">بيانات تجريبية قابلة للتعديل</span></div><div class="progressline"><span>طلبات معتمدة</span><div class="track"><i id="approvedBar"></i></div><b id="approvedCount">0</b></div><div class="progressline"><span>طلبات معلقة</span><div class="track orange"><i id="pendingBar"></i></div><b id="pendingCount">0</b></div><div class="progressline"><span>طلبات مرفوضة</span><div class="track red"><i id="rejectedBar"></i></div><b id="rejectedCount">0</b></div></div>
-<div class="panel"><div class="panelhead"><h2>الفروع الأعلى استخدامًا</h2><input id="branchSearch" placeholder="ابحث عن فرع..." aria-label="بحث عن فرع"></div><div class="tablewrap"><table><thead><tr><th>الفرع</th><th>الحصة</th><th>المستخدم</th><th>المتبقي</th><th>الحالة</th></tr></thead><tbody id="branchRows"></tbody></table></div></div>
+
+<div id="globalMsg" class="notice hidden"></div>
+
+<section id="loginView" class="login-screen">
+ <div class="login-card">
+  <div class="logo">↩</div>
+  <h1>إدارة استثناءات المرتجعات</h1>
+  <p>تسجيل الدخول إلى النظام</p>
+  <form id="loginForm">
+   <label>اسم المستخدم
+    <input id="username" autocomplete="username" required>
+   </label>
+   <label>كلمة المرور
+    <input id="password" type="password" autocomplete="current-password" required>
+   </label>
+   <button class="primary" type="submit">تسجيل الدخول</button>
+   <p id="loginError" class="error-text"></p>
+  </form>
+ </div>
 </section>
-<section id="requests" class="page"><div class="pagehead"><div><h1>طلبات الاستثناء</h1><p>تسجيل الطلبات ومراجعتها حسب الصلاحيات</p></div><button class="primary" id="newRequestBtn2">＋ طلب جديد</button></div><div class="filters"><input id="requestSearch" placeholder="بحث برقم الطلب أو الفرع أو الفاتورة"><select id="statusFilter"><option value="">كل الحالات</option><option>معلق</option><option>معتمد</option><option>مرفوض</option></select></div><div id="requestList" class="cards"></div></section>
-<section id="transfer" class="page"><div class="pagehead"><div><h1>تحويل الحصص</h1><p>نقل رصيد غير مستخدم بعد موافقة إدارة الكاشير</p></div></div><div class="panel"><form id="transferForm" class="formgrid"><label>الفرع المانح<select id="fromBranch" required></select></label><label>الفرع المستفيد<select id="toBranch" required></select></label><label>عدد الاستثناءات<input id="transferAmount" type="number" min="1" value="1" required></label><label class="full">سبب التحويل<input id="transferReason" required placeholder="مثال: احتياج تشغيلي موثق"></label><button class="primary full" type="submit">اعتماد التحويل وتسجيله</button></form></div><div class="panel"><h2>آخر التحويلات</h2><div id="transferList" class="cards"></div></div></section>
-<section id="reports" class="page"><div class="pagehead"><div><h1>التقارير</h1><p>تنزيل بيانات متوافقة مع Excel بصيغة CSV</p></div></div><div class="reportgrid"><button class="report" id="exportRequests">⬇ تقرير الطلبات</button><button class="report" id="exportBranches">⬇ تقرير أرصدة الفروع</button><button class="report" id="exportTransfers">⬇ تقرير التحويلات</button><button class="report" id="exportAudit">⬇ سجل التدقيق</button></div><div class="panel"><h2>مؤشرات الأداء</h2><div id="kpis" class="kpis"></div><p class="muted small">خط الأساس المبدئي: 170 استثناء خلال شهر. حد كل فرع: 3 استثناءات شهريًا. المؤشرات تتحدث وفق البيانات المسجلة في هذا الجهاز.</p></div></section>
-<section id="audit" class="page"><div class="pagehead"><div><h1>سجل التدقيق</h1><p>توثيق الإنشاء والاعتماد والرفض وتحويل الأرصدة</p></div><button class="secondary" id="exportAudit2">تصدير السجل</button></div><div id="auditList" class="cards"></div></section>
+
+<div id="appView" class="hidden">
+
+<header>
+ <div class="brand">
+  <div class="logo">↩</div>
+  <div>
+   <strong>استثناءات المرتجعات</strong>
+   <small>نظام إدارة ومتابعة الفروع</small>
+  </div>
+ </div>
+ <div class="header-actions">
+  <span id="userInfo"></span>
+  <button class="ghost" id="refreshBtn">تحديث البيانات</button>
+  <button class="ghost" id="logoutBtn">تسجيل الخروج</button>
+ </div>
+</header>
+
+<nav id="nav">
+ <button class="active" data-page="dashboard">الرئيسية</button>
+ <button data-page="requests">طلبات الاستثناء</button>
+ <button data-page="transfers">تحويل الحصص</button>
+ <button data-page="users" id="usersNav" class="hidden">المستخدمون</button>
+ <button data-page="audit" id="auditNav" class="hidden">سجل التدقيق</button>
+</nav>
+
+<main>
+
+<section id="dashboard" class="page active">
+ <div class="pagehead">
+  <div>
+   <h1>لوحة المتابعة</h1>
+   <p id="periodLabel">ملخص أرصدة وطلبات الفروع</p>
+  </div>
+  <button class="primary" id="newRequestBtn">＋ طلب استثناء</button>
+ </div>
+
+ <div class="metrics">
+  <article><span>عدد الفروع</span><b id="branchCount">0</b></article>
+  <article><span>إجمالي الحصص الأساسية</span><b id="quotaCount">0</b></article>
+  <article><span>إجمالي الطلبات</span><b id="requestCount">0</b></article>
+  <article><span>الطلبات المعلقة</span><b id="pendingCount">0</b></article>
+ </div>
+
+ <div class="panel">
+  <div class="panelhead">
+   <h2>أرصدة الفروع</h2>
+   <input id="branchSearch" placeholder="ابحث بكود الفرع أو اسمه">
+  </div>
+  <div class="tablewrap">
+   <table>
+    <thead>
+     <tr>
+      <th>كود الفرع</th>
+      <th>اسم الفرع</th>
+      <th>الحصة الأساسية</th>
+      <th>تحويلات واردة</th>
+      <th>تحويلات صادرة</th>
+      <th>المستخدم</th>
+      <th>المتاح</th>
+     </tr>
+    </thead>
+    <tbody id="branchRows"></tbody>
+   </table>
+  </div>
+ </div>
+</section>
+
+<section id="requests" class="page">
+ <div class="pagehead">
+  <div>
+   <h1>طلبات الاستثناء</h1>
+   <p>متابعة الطلبات ومراجعة القرارات</p>
+  </div>
+  <button class="primary" id="newRequestBtn2">＋ طلب جديد</button>
+ </div>
+
+ <div class="filters">
+  <input id="requestSearch" placeholder="بحث برقم الطلب أو الفرع أو الفاتورة">
+  <select id="statusFilter">
+   <option value="">كل الحالات</option>
+   <option value="pending">معلق</option>
+   <option value="approved">معتمد</option>
+   <option value="rejected">مرفوض</option>
+  </select>
+ </div>
+ <div id="requestList" class="cards"></div>
+</section>
+
+<section id="transfers" class="page">
+ <div class="pagehead">
+  <div>
+   <h1>تحويل الحصص</h1>
+   <p>طلب نقل رصيد الاستثناءات بين الفروع</p>
+  </div>
+ </div>
+
+ <div id="transferCreate" class="panel">
+  <h2>طلب تحويل حصة</h2>
+  <form id="transferForm" class="formgrid">
+   <label>الفرع المانح
+    <select id="fromBranch" required></select>
+   </label>
+   <label>الفرع المستفيد
+    <select id="toBranch" required></select>
+   </label>
+   <label>عدد الاستثناءات
+    <input id="transferQty" type="number" min="1" step="1" value="1" required>
+   </label>
+   <label class="full">سبب التحويل
+    <textarea id="transferReason" rows="3" required></textarea>
+   </label>
+   <button class="primary full" type="submit">إرسال طلب التحويل</button>
+  </form>
+ </div>
+
+ <div class="panel">
+  <h2>سجل التحويلات</h2>
+  <div id="transferList" class="cards"></div>
+ </div>
+</section>
+
+<section id="users" class="page">
+ <div class="pagehead">
+  <div>
+   <h1>إدارة المستخدمين</h1>
+   <p>إنشاء حسابات وتحديد الأدوار والفروع المسموح بها</p>
+  </div>
+ </div>
+
+ <div class="panel">
+  <h2>إنشاء مستخدم جديد</h2>
+  <form id="userForm" class="formgrid">
+   <label>اسم المستخدم
+    <input id="newUsername" required maxlength="60">
+   </label>
+   <label>الاسم الظاهر
+    <input id="newDisplayName" required maxlength="120">
+   </label>
+   <label>كلمة المرور
+    <input id="newPassword" type="password" required minlength="8">
+   </label>
+   <label>الدور
+    <select id="newRole" required>
+     <option value="branch_user">مسؤول فرع</option>
+     <option value="report_viewer">مراقب تقارير</option>
+     <option value="system_admin">مدير النظام</option>
+    </select>
+   </label>
+   <label class="full">الفروع المسموح بها
+    <select id="userBranches" multiple size="6"></select>
+   </label>
+   <button class="primary full" type="submit">إنشاء المستخدم</button>
+  </form>
+ </div>
+
+ <div class="panel">
+  <h2>المستخدمون المسجلون</h2>
+  <div id="userList" class="cards"></div>
+ </div>
+</section>
+
+<section id="audit" class="page">
+ <div class="pagehead">
+  <div>
+   <h1>سجل التدقيق</h1>
+   <p>متابعة الحركات والقرارات المسجلة بالنظام</p>
+  </div>
+ </div>
+ <div id="auditList" class="cards"></div>
+</section>
+
 </main>
-<div class="modal hidden" id="requestModal"><div class="modalbox"><div class="modalhead"><h2>طلب استثناء مرتجع</h2><button class="ghost" id="closeModal">✕</button></div><form id="requestForm" class="formgrid">
-<label>الفرع<select id="reqBranch" required></select></label><label>رقم الفاتورة<input id="invoice" required maxlength="60"></label><label>اسم العميل<input id="customer" maxlength="120" placeholder="اختياري"></label><label>قيمة المرتجع (جنيه)<input id="amount" type="number" min="0" step="0.01" required></label><label class="full">سبب الاستثناء<select id="reason" required><option value="">اختر السبب</option><option>خارج فترة المرتجع</option><option>منتج مستخدم</option><option>شرط التغليف</option><option>خطأ تشغيلي</option><option>سبب آخر</option></select></label><label class="full">تفاصيل ومبررات الطلب<textarea id="details" required rows="3" placeholder="اكتب سبب الطلب والمستندات المتاحة"></textarea></label><label class="full">مرجع مستند أو ملاحظة<input id="attachment" placeholder="رقم المستند أو وصفه (رفع الملفات غير مفعّل في النموذج)"></label><div class="formnote full" id="quotaPreview"></div><button class="primary full" type="submit">إرسال الطلب للمراجعة</button></form></div></div>
-<footer>نسخة أولية تجريبية • لا تدخل بيانات عملاء حقيقية قبل ربط النظام بخادم آمن</footer>
-<script src="app.js"></script>
-</body></html>
+
+<div class="modal hidden" id="requestModal">
+ <div class="modalbox">
+  <div class="modalhead">
+   <h2>تسجيل طلب استثناء مرتجع</h2>
+   <button class="ghost" id="closeModal">✕</button>
+  </div>
+
+  <form id="requestForm" class="formgrid">
+   <label>الفرع
+    <select id="reqBranch" required></select>
+   </label>
+
+   <label>رقم الفاتورة
+    <input id="invoice" required maxlength="60">
+   </label>
+
+   <label>اسم العميل
+    <input id="customer" maxlength="120">
+   </label>
+
+   <label>قيمة المرتجع بالجنيه
+    <input id="amount" type="number" min="0" step="0.01" required>
+   </label>
+
+   <label class="full">سبب الاستثناء
+    <select id="reason" required>
+     <option value="">اختر السبب</option>
+     <option>خارج فترة المرتجع</option>
+     <option>منتج مستخدم</option>
+     <option>شرط التغليف</option>
+     <option>خطأ تشغيلي</option>
+     <option>سبب آخر</option>
+    </select>
+   </label>
+
+   <label class="full">تفاصيل ومبررات الطلب
+    <textarea id="details" rows="4" required></textarea>
+   </label>
+
+   <button class="primary full" type="submit">إرسال الطلب للمراجعة</button>
+  </form>
+ </div>
+</div>
+
+<footer>
+ نظام إدارة استثناءات المرتجعات
+</footer>
+
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
