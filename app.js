@@ -225,9 +225,8 @@ function renderRequests(){
 $('requestSearch').oninput=renderRequests;
 $('statusFilter').onchange=renderRequests;
 
-$('newRequestBtn').onclick=()=>{
- $('requestModal').classList.remove('hidden');
-};
+$('newRequestBtn').onclick=()=>{ $('requestModal').classList.remove('hidden'); };
+$('newRequestBtn2').onclick=()=>{ $('requestModal').classList.remove('hidden'); };
 
 $('closeModal').onclick=()=>{
  $('requestModal').classList.add('hidden');
