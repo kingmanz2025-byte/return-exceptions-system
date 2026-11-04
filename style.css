@@ -752,3 +752,10 @@ nav button.active,button.primary{background:linear-gradient(135deg,#ed1c2e,#b80e
 .metrics b{color:#c91524;font-size:30px}
 input,select,textarea{border:1px solid #e7d9ce;border-radius:10px}input:focus,select:focus,textarea:focus{outline:2px solid #e51d2a25;border-color:#e51d2a}
 button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brightness(.97)}
+
+
+/* Official RANEEN logo asset */
+.raneen-logo-img{display:block;width:116px;height:auto;max-height:62px;object-fit:contain;flex:0 0 auto;background:transparent;border:0;box-shadow:none;border-radius:0}
+.login-card .raneen-logo-img{width:min(230px,72%);max-height:122px;margin:0 auto 20px}
+.brand .raneen-logo-img{width:116px;max-height:62px}
+@media(max-width:420px){.brand .raneen-logo-img{width:88px;max-height:48px}.login-card .raneen-logo-img{width:min(205px,72%)}}
