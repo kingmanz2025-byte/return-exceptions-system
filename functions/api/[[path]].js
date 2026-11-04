@@ -281,6 +281,31 @@ export async function onRequest({request,env}) {
  if(!user)return fail("يلزم تسجيل الدخول",401);
  if(user.must_change_password && !["me","change-password","logout"].includes(path))return fail("يجب تغيير كلمة المرور المؤقتة أولاً",403);
 
+ // تصفير الحركات التشغيلية مع الاحتفاظ بالمستخدمين والفروع والإعدادات
+ if(path==="admin/reset-operational-data"&&method==="POST"){
+  if(user.role!=="system_admin"||!allowed(user,"branches"))
+   return fail("هذه العملية متاحة لمدير النظام فقط",403);
+  const before=await env.DB.batch([
+   env.DB.prepare("SELECT COUNT(*) n FROM exception_requests"),
+   env.DB.prepare("SELECT COUNT(*) n FROM quota_transfer_requests"),
+   env.DB.prepare("SELECT COUNT(*) n FROM monthly_branch_balances"),
+   env.DB.prepare("SELECT COUNT(*) n FROM audit_logs WHERE entity_type IN ('exception_request','quota_transfer') OR action LIKE 'request_%' OR action LIKE 'transfer_%'")
+  ]);
+  await env.DB.batch([
+   env.DB.prepare("DELETE FROM exception_requests"),
+   env.DB.prepare("DELETE FROM quota_transfer_requests"),
+   env.DB.prepare("DELETE FROM monthly_branch_balances"),
+   env.DB.prepare("DELETE FROM audit_logs WHERE entity_type IN ('exception_request','quota_transfer') OR action LIKE 'request_%' OR action LIKE 'transfer_%'")
+  ]);
+  return json({ok:true,deleted:{
+   requests:Number(before[0].results?.[0]?.n||0),
+   transfers:Number(before[1].results?.[0]?.n||0),
+   balances:Number(before[2].results?.[0]?.n||0),
+   operationalAudit:Number(before[3].results?.[0]?.n||0)
+  }});
+ }
+
+
  if(path==="change-password"&&method==="POST"){const x=await body(request);if(typeof x?.password!=="string"||x.password.length<12)return fail("كلمة المرور الجديدة يجب ألا تقل عن 12 حرفًا");const salt=b64u(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(x.password,salt);await env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,must_change_password=0 WHERE id=?").bind(hash,salt,user.id).run();await audit(env,user,"password_changed","user",user.id,{});return json({ok:true});}
  // بيانات المستخدم الحالي
  if(path==="me"&&method==="GET"){
