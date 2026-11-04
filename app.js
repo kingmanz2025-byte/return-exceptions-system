@@ -163,7 +163,7 @@ function renderDashboard(){
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
  const q=($('branchSearch').value||'').toLowerCase();
  const usedFilter=$('branchUsageSearch')?.value||'';
- if($('branchRanking')){const counts={};req.forEach(r=>{const k=r.branch_id||r.branch_code;counts[k]=(counts[k]||0)+1;});$('branchRanking').innerHTML=[...branches].map(b=>({...b,count:counts[b.id]||counts[b.code]||0})).sort((a,b)=>b.count-a.count).slice(0,8).map((b,i)=>'<div class="dash-row"><b>'+(i+1)+'. '+esc(b.name)+'</b><span>'+b.count+' طلب</span></div>').join('')||'<p>لا توجد بيانات.</p>';}
+ if($('branchRanking')){const counts={};req.forEach(r=>{const k=r.branch_id||r.branch_code;counts[k]=(counts[k]||0)+1;});const ranked=branches.map(b=>({...b,count:counts[b.id]||counts[b.code]||0})).filter(b=>b.count>0).sort((a,b)=>b.count-a.count).slice(0,8);const max=ranked[0]?.count||1;$('branchRanking').innerHTML=ranked.map((b,i)=>'<div class="health-line"><span>'+ (i+1)+'. '+esc(b.name)+' ('+b.count+' طلب)</span><b>'+Math.round(b.count/max*100)+'%</b><div class="track"><i style="width:'+Math.round(b.count/max*100)+'%"></i></div></div>').join('')||'<p>لا توجد فروع لديها طلبات في الفترة.</p>';}
  $('branchRows').innerHTML=branches
   .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q)&&(!usedFilter||Number(b.used||0)>=Number(usedFilter)))
   .map(b=>{
@@ -184,6 +184,7 @@ function renderDashboard(){
 $('branchSearch').oninput=renderDashboard;
 $('fromBranch').addEventListener('change',updateTransferTargets);
 $('loadReportsBtn').onclick=loadReports;
+document.querySelectorAll('[data-report-open]').forEach(b=>b.addEventListener('click',()=>{document.querySelectorAll('[data-report-panel]').forEach(p=>p.classList.toggle('hidden',p.dataset.reportPanel!==b.dataset.reportOpen));loadReports();}));
 document.querySelectorAll('[data-export]').forEach(b=>b.addEventListener('click',()=>exportReport(b.dataset.export,b.dataset.filename)));
 $('refreshBtn').onclick=refreshAll;
 
@@ -224,6 +225,7 @@ function renderRequests(){
 }
 
 $('requestSearch').oninput=renderRequests;
+$('reason')?.addEventListener('change',()=>{const show=$('reason').value==='سبب آخر';$('otherReasonWrap')?.classList.toggle('hidden',!show);$('otherReason').required=show;});
 $('statusFilter').onchange=renderRequests;
 
 $('newRequestBtn').onclick=()=>{ $('requestModal').classList.remove('hidden'); };
@@ -235,6 +237,10 @@ $('closeModal').onclick=()=>{
 
 $('requestForm').onsubmit=async e=>{
  e.preventDefault();
+ const phone=$('customerPhone').value.trim(),nid=$('nationalId').value.trim();
+ if(!/^0[0-9]{10}$/.test(phone)){message('رقم التليفون غير صحيح، يجب أن يبدأ بصفر ويتكون من 11 رقمًا',true);return;}
+ if(!/^[0-9]{14}$/.test(nid)){message('راجع الرقم القومي، يجب إدخال 14 رقمًا',true);return;}
+ if($('reason').value==='سبب آخر'&&!$('otherReason').value.trim()){message('من فضلك اكتب سبب الاستثناء الآخر',true);return;}
  try{
   const branchId=Number($('reqBranch').value);
   const result=await api('requests',{
@@ -243,6 +249,11 @@ $('requestForm').onsubmit=async e=>{
     branchId,
     invoiceNumber:$('invoice').value.trim(),
     customerName:$('customer').value.trim(),
+    customerPhone:$('customerPhone').value.trim(),
+    nationalId:$('nationalId').value.trim(),
+    itemCode:$('itemCode').value.trim(),
+    itemName:$('itemName').value.trim(),
+    otherReason:$('otherReason').value.trim(),
     amount:Number($('amount').value),
     reason:$('reason').value,
     details:$('details').value.trim(),
@@ -369,9 +380,10 @@ function renderUsers(){
     <h3>${esc(u.display_name)}</h3>
     <span class="pill">${roleName(u.role)}</span>
    </div>
-   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions"><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button></div>
+   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions">${u.username.toLowerCase()==='admin'?'<b>حساب محمي - لا يمكن تعديله</b>':`<button data-user-edit="${esc(u.id)}">تعديل البيانات والصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button>`}</div>
   </article>
- `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
+ `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-edit]').forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>String(x.id)===b.dataset.userEdit);if(!u)return;const displayName=prompt('الاسم الظاهر',u.display_name);if(displayName===null)return;const role=prompt('الدور: branch_user أو report_viewer أو system_admin',u.role);if(role===null)return;const branches=await api('branches');const selected=(await api('user-branches/'+encodeURIComponent(u.id))).branchIds||[];const choices=branches.branches.map(x=>x.id+': '+x.name).join('\\n');const raw=prompt('اكتب أرقام IDs للفروع مفصولة بفواصل. الفروع المتاحة:\\n'+choices,selected.join(','));if(raw===null)return;try{await api('users/'+encodeURIComponent(u.id),{method:'PATCH',body:JSON.stringify({displayName,role,branchIds:raw.split(',').map(x=>Number(x.trim())).filter(Number.isInteger)})});message('تم تحديث المستخدم وصلاحيات فروعه');await refreshAll();}catch(e){message(e.message,true);}});
+document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
 }
 
 async function loadReports(){
