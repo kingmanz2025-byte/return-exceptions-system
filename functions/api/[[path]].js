@@ -309,7 +309,7 @@ export async function onRequest({request,env}) {
 
  // عرض الطلبات
  if(path==="requests"&&method==="GET"){
-  if(user.role==="branch_user"){const own=await env.DB.prepare("SELECT e.*,b.code branch_code,b.name branch_name,u.display_name creator_name FROM exception_requests e JOIN branches b ON b.id=e.branch_id JOIN users u ON u.id=e.created_by WHERE e.created_by=? ORDER BY e.created_at DESC LIMIT 500").bind(user.id).all();return json({ok:true,requests:own.results});}
+  if(user.role==="branch_user")return json({ok:true,requests:[]});
   if(user.role!=="system_admin")return fail("غير مصرح",403);
   let sql=
    "SELECT e.*,b.code branch_code,b.name branch_name,u.display_name creator_name FROM exception_requests e JOIN branches b ON b.id=e.branch_id JOIN users u ON u.id=e.created_by";
