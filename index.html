@@ -106,6 +106,33 @@
   <article><span>الطلبات المعلقة</span><b id="pendingCount">0</b></article>
  </div>
 
+ <div class="dashboard-strip">
+  <article class="dash-stat"><span>الطلبات المعتمدة</span><b id="approvedCount">0</b><small>طلبات تم اعتمادها</small></article>
+  <article class="dash-stat"><span>الطلبات المرفوضة</span><b id="rejectedCount">0</b><small>طلبات تم رفضها</small></article>
+  <article class="dash-stat"><span>إجمالي الرصيد المتاح</span><b id="availableCount">0</b><small>حصة متاحة للفروع</small></article>
+  <article class="dash-stat"><span>إجمالي المستخدم</span><b id="usedCount">0</b><small>من الحصص</small></article>
+  <article class="dash-stat"><span>تحويلات واردة</span><b id="incomingCount">0</b><small>حصة وصلت للفروع</small></article>
+  <article class="dash-stat"><span>تحويلات صادرة</span><b id="outgoingCount">0</b><small>حصة خرجت من الفروع</small></article>
+ </div>
+
+ <div class="dashboard-grid">
+  <section class="panel dashboard-health">
+   <div class="panelhead"><h2>مؤشر أداء الطلبات</h2><strong id="approvalRate">0%</strong></div>
+   <div class="health-line"><span>نسبة الاعتماد</span><div class="track"><i id="approvalBar"></i></div></div>
+   <div class="health-line"><span>طلبات معلقة</span><div class="track orange"><i id="pendingBar"></i></div></div>
+   <div class="health-line"><span>طلبات مرفوضة</span><div class="track red"><i id="rejectedBar"></i></div></div>
+   <p class="muted">المؤشرات محسوبة من طلبات الفترة الحالية.</p>
+  </section>
+  <section class="panel">
+   <div class="panelhead"><h2>أحدث طلبات الاستثناء</h2><button class="secondary" data-go-page="requests">عرض الكل</button></div>
+   <div id="recentRequests" class="dashboard-feed"></div>
+  </section>
+  <section class="panel dashboard-wide">
+   <div class="panelhead"><h2>أحدث تحويلات الحصص</h2><button class="secondary" data-go-page="transfers">فتح التحويلات</button></div>
+   <div id="recentTransfers" class="dashboard-feed"></div>
+  </section>
+ </div>
+
  <div class="panel">
   <div class="panelhead">
    <h2>أرصدة الفروع</h2>
