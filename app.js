@@ -65,18 +65,19 @@ async function startApp(){
  $('appView').classList.remove('hidden');
  $('userInfo').textContent=`${me.user.display_name||me.user.username} • ${roleName(me.user.role)}`;
  if(me.user.must_change_password){$('passwordChangeModal')?.classList.remove('hidden');}
- $('usersNav').classList.toggle('hidden',me.user.role!=='system_admin');
- $('nav').querySelector('[data-page=dashboard]')?.classList.toggle('hidden',me.user.role!=='system_admin');
- $('dashboard').classList.toggle('hidden',me.user.role!=='system_admin');
- $('auditNav').classList.toggle('hidden',me.user.role!=='system_admin');
- $('reportsNav').classList.toggle('hidden',me.user.role!=='system_admin');
- $('settingsNav')?.classList.toggle('hidden',me.user.role!=='system_admin');
- $('nav').querySelectorAll('button').forEach(b=>{const adminOnly=['transfers','reports','users','audit','settings'].includes(b.dataset.page);b.classList.toggle('hidden',adminOnly&&me.user.role!=='system_admin');});
- $('newRequestBtn').classList.toggle('hidden',me.user.role!=='system_admin');
+ const permissions=me.user.permissions||{};const can=(key)=>me.user.role==='system_admin'?(permissions[key]!==false):!!permissions[key];
+ $('usersNav').classList.toggle('hidden',!can('users'));
+ $('nav').querySelector('[data-page=dashboard]')?.classList.toggle('hidden',!can('dashboard'));
+ $('dashboard').classList.toggle('hidden',!can('dashboard'));
+ $('auditNav').classList.toggle('hidden',!can('audit'));
+ $('reportsNav').classList.toggle('hidden',!can('reports'));
+ $('settingsNav')?.classList.toggle('hidden',!can('branches'));
+ $('nav').querySelectorAll('button').forEach(b=>{const key={dashboard:'dashboard',requests:'requests',transfers:'transfers',reports:'reports',users:'users',audit:'audit',settings:'branches'}[b.dataset.page];if(key)b.classList.toggle('hidden',!can(key));});
+ $('newRequestBtn').classList.toggle('hidden',!can('create_request'));
  if(me.user.role==='branch_user'){document.querySelector('#requests .filters')?.classList.add('hidden');$('requestList')?.classList.add('hidden');$('newRequestBtn2')?.classList.add('hidden');}
- $('transferCreate').classList.toggle('hidden',me.user.role!=='system_admin');
+ $('transferCreate').classList.toggle('hidden',!can('create_transfer'));
  await refreshAll();
- if(me.user.role!=='system_admin')setPage('requests');
+ const firstPage=[...document.querySelectorAll('#nav button:not(.hidden)')][0]?.dataset.page||'requests';setPage(firstPage);
  if(me.user.role==='branch_user')$('requestModal')?.classList.remove('hidden');
 }
 
@@ -100,7 +101,7 @@ async function refreshAll(){
    try{const tb=await api('transfer-branches');state.transferBranches=tb.branches||[];}catch(e){state.transferBranches=[];message(e.message,true)}
   }else{state.transferBranches=[];}
   fillBranchSelects();
-  if(state.user.role==='system_admin'){renderDashboard();renderTransfers();}else{renderRequests();}
+  if(state.user.role==='system_admin'||state.user.permissions?.dashboard){if(state.user.permissions?.dashboard!==false)renderDashboard();if(state.user.permissions?.transfers!==false)renderTransfers();}if(state.user.role==='branch_user'||state.user.permissions?.requests)renderRequests();
 
   if(state.user.role==='system_admin'){
    try{const u=await api('users');state.users=u.users||[];state.recoveryRequests=u.recoveryRequests||[]}catch{}
@@ -161,6 +162,10 @@ function renderDashboard(){
  const pct=total?Math.round(approved/total*100):0;
  if($('approvalRate'))$('approvalRate').textContent=pct+'%';
  if($('approvalBar'))$('approvalBar').style.width=pct+'%';
+ const usage={};req.forEach(r=>{const k=String(r.branch_id||r.branch_code||'');usage[k]=(usage[k]||0)+1;});
+ const ranked=branches.map(b=>({...b,count:usage[String(b.id)]||usage[String(b.code)]||0})).filter(b=>b.count>0).sort((a,b)=>b.count-a.count).slice(0,8);
+ const maxUsage=ranked[0]?.count||1;
+ if($('branchRanking'))$('branchRanking').innerHTML=ranked.map((b,i)=>{const n=Math.round(b.count/maxUsage*100);return '<div class="health-line"><span>'+(i+1)+'. '+esc(b.name)+' ('+b.count+' طلب)</span><b>'+n+'%</b><div class="track"><i style="width:'+n+'%"></i></div></div>';}).join('')||'<p class="muted">لا توجد فروع لديها طلبات.</p>';
  if($('pendingBar'))$('pendingBar').style.width=(total?Math.round(pending/total*100):0)+'%';
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
  if($('recentRequests')){
@@ -374,7 +379,7 @@ function renderUsers(){
    </div>
    <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions">${u.username.toLowerCase()==='admin'?'<b>حساب محمي - لا يمكن تعديله</b>':`<button data-user-edit="${esc(u.id)}">تعديل البيانات والصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button>`}</div>
   </article>
- `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-edit]').forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>String(x.id)===b.dataset.userEdit);if(!u)return;const displayName=prompt('الاسم الظاهر',u.display_name);if(displayName===null)return;const role=prompt('الدور: branch_user أو report_viewer أو system_admin',u.role);if(role===null)return;const branches=await api('branches');const selected=(await api('user-branches/'+encodeURIComponent(u.id))).branchIds||[];const choices=branches.branches.map(x=>x.id+': '+x.name).join('\\n');const raw=prompt('اكتب أرقام IDs للفروع مفصولة بفواصل. الفروع المتاحة:\\n'+choices,selected.join(','));if(raw===null)return;try{await api('users/'+encodeURIComponent(u.id),{method:'PATCH',body:JSON.stringify({displayName,role,branchIds:raw.split(',').map(x=>Number(x.trim())).filter(Number.isInteger)})});message('تم تحديث المستخدم وصلاحيات فروعه');await refreshAll();}catch(e){message(e.message,true);}});
+ `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-edit]').forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>String(x.id)===b.dataset.userEdit);if(!u)return;const displayName=prompt('الاسم الظاهر',u.display_name);if(displayName===null)return;const role=prompt('الدور: branch_user أو report_viewer أو system_admin',u.role);if(role===null)return;const branches=await api('branches');const selected=(await api('user-branches/'+encodeURIComponent(u.id))).branchIds||[];const choices=branches.branches.map(x=>x.id+': '+x.name).join('\\n');const raw=prompt('اكتب أرقام IDs للفروع مفصولة بفواصل. الفروع المتاحة:\\n'+choices,selected.join(','));if(raw===null)return;const current=u.permissions||{};const allowed=prompt('الصلاحيات المتاحة (اكتب أسماء الصلاحيات مفصولة بفواصل):\\ndashboard = لوحة المتابعة\nrequests = عرض طلبات الاستثناء\ncreate_request = إنشاء طلب استثناء\ntransfers = تحويل الحصص\ncreate_transfer = إنشاء تحويل حصة\nreports = التقارير\nusers = إدارة المستخدمين\nbranches = إدارة الفروع\naudit = سجل التدقيق\\nلإلغاء صلاحية احذفها من القائمة.',Object.keys(current).filter(k=>current[k]).join(','));if(allowed===null)return;const permissions={};allowed.split(',').map(x=>x.trim()).filter(Boolean).forEach(k=>{if(["dashboard","requests","create_request","transfers","create_transfer","reports","users","branches","audit"].includes(k))permissions[k]=true;});try{await api('users/'+encodeURIComponent(u.id),{method:'PATCH',body:JSON.stringify({displayName,role,branchIds:raw.split(',').map(x=>Number(x.trim())).filter(Number.isInteger),permissions})});message('تم تحديث المستخدم وصلاحيات فروعه');await refreshAll();}catch(e){message(e.message,true);}});
 document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
 }
 
@@ -485,19 +490,31 @@ async function refreshHeaderClock(){
  if(el)el.textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(now);
  if(date)date.textContent=new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',weekday:'long',year:'numeric',month:'long',day:'numeric'}).format(now)+' • '+new Intl.DateTimeFormat('ar-SA-u-ca-islamic-umalqura',{timeZone:'Africa/Cairo',year:'numeric',month:'long',day:'numeric'}).format(now);
 }
-async function refreshPrayerTimes(){
+let prayerCoords={lat:30.0444,lon:31.2357},prayerCity='القاهرة',prayerSchedule=null;
+function setPrayerHeading(){const h=document.querySelector('.prayer-heading b');if(h)h.textContent='مواقيت الصلاة - '+prayerCity;}
+async function loadPrayerSchedule(){
  try{
-  const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude=30.0444&longitude=31.2357&method=5');
-  const j=await r.json(),t=j.data.timings,now=new Date(),m=now.getHours()*60+now.getMinutes();
+  const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude='+prayerCoords.lat+'&longitude='+prayerCoords.lon+'&method=5');
+  if(!r.ok)throw new Error('prayer api');const j=await r.json();prayerSchedule=j.data.timings;
   const items=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];
-  const list=document.getElementById('prayerTimes');
-  if(list)list.innerHTML=items.map(([name,key])=>'<div class="prayer-time"><span>'+name+'</span><b dir="ltr">'+t[key].slice(0,5)+'</b></div>').join('');
-
-  let next=null;
-  for(const [name,key] of items){const [hh,mm]=t[key].split(':').map(Number),v=hh*60+mm;if(v>m){next={name,min:v};break;}}
-  if(!next){const [hh,mm]=t.Fajr.split(':').map(Number);next={name:'الفجر',min:hh*60+mm+1440};}
-  const remain=next.min-m,box=document.getElementById('prayerLine');
-  if(box)box.textContent='الصلاة القادمة: '+next.name+' بعد '+Math.floor(remain/60)+' س '+(remain%60)+' د';
- }catch{const box=document.getElementById('prayerLine');if(box)box.textContent='مواقيت الصلاة – القاهرة';}
+  const list=document.getElementById('prayerTimes');if(list)list.innerHTML=items.map(([name,key])=>'<div class="prayer-time"><span>'+name+'</span><b dir="ltr">'+prayerSchedule[key].slice(0,5)+'</b></div>').join('');
+  setPrayerHeading();updatePrayerCountdown();
+ }catch{const box=document.getElementById('prayerLine');if(box)box.textContent='تعذر تحميل مواقيت الصلاة';}
 }
+function updatePrayerCountdown(){
+ if(!prayerSchedule)return;const now=new Date(),keys=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];
+ let next=null;for(const [name,key] of keys){const [h,m]=prayerSchedule[key].split(':').map(Number);const target=new Date(now);target.setHours(h,m,0,0);if(target>now){next={name,target};break;}}
+ if(!next){const [h,m]=prayerSchedule.Fajr.split(':').map(Number),target=new Date(now);target.setDate(target.getDate()+1);target.setHours(h,m,0,0);next={name:'الفجر',target};}
+ const sec=Math.max(0,Math.floor((next.target-now)/1000)),hh=String(Math.floor(sec/3600)).padStart(2,'0'),mm=String(Math.floor(sec%3600/60)).padStart(2,'0'),ss=String(sec%60).padStart(2,'0');
+ const box=document.getElementById('prayerLine');if(box)box.textContent='الصلاة القادمة: '+next.name+' بعد '+hh+':'+mm+':'+ss;
+}
+function detectPrayerLocation(){
+ if(!navigator.geolocation){loadPrayerSchedule();return;}
+ navigator.geolocation.getCurrentPosition(async pos=>{
+  prayerCoords={lat:pos.coords.latitude,lon:pos.coords.longitude};
+  try{const r=await fetch('https://geocoding-api.open-meteo.com/v1/reverse?latitude='+prayerCoords.lat+'&longitude='+prayerCoords.lon+'&language=ar&format=json');const j=await r.json();prayerCity=j?.results?.[0]?.city||j?.results?.[0]?.name||j?.results?.[0]?.admin1||'موقعك الحالي';}catch{prayerCity='موقعك الحالي';}
+  loadPrayerSchedule();
+ },()=>{prayerCity='القاهرة (الموقع الافتراضي)';loadPrayerSchedule();},{enableHighAccuracy:false,timeout:10000,maximumAge:3600000});
+}
+detectPrayerLocation();setInterval(updatePrayerCountdown,1000);setInterval(loadPrayerSchedule,6*60*60*1000);
 refreshHeaderClock();setInterval(refreshHeaderClock,1000);refreshPrayerTimes();setInterval(refreshPrayerTimes,6*60*60*1000);
