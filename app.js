@@ -1,4 +1,3 @@
-
 const $=id=>document.getElementById(id);
 const state={user:null,branches:[],requests:[],transfers:[],users:[],audit:[],dashboard:null};
 
@@ -326,8 +325,7 @@ function renderAudit(){
  `).join('')||'<div class="item">لا توجد حركات مسجلة.</div>';
 }
 
-(async()=>{
- $('setupForm').addEventListener('submit',async e=>{
+$('setupForm').addEventListener('submit',async e=>{
  e.preventDefault();
 
  $('setupError').textContent='';
