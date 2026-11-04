@@ -818,3 +818,29 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
 #branchRanking .health-line{display:grid;grid-template-columns:minmax(160px,1fr) 55px;gap:8px;align-items:center;margin:10px 0}
 #branchRanking .track{grid-column:1/-1}
 @media(max-width:700px){.report-shortcuts{grid-template-columns:1fr}}
+
+
+/* Keep global notifications clear of the fixed right sidebar. */
+#globalMsg {
+  margin: 14px 259px 14px 14px;
+  direction: rtl;
+  text-align: right;
+  position: relative;
+  z-index: 6;
+  min-height: 46px;
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+#globalMsg.hidden {
+  display: none !important;
+}
+
+@media (max-width: 760px) {
+  #globalMsg {
+    margin: 12px 14px;
+  }
+}
