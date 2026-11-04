@@ -78,7 +78,7 @@ async function startApp(){
  $('transferCreate').classList.toggle('hidden',!can('create_transfer'));
  await refreshAll();
  const firstPage=[...document.querySelectorAll('#nav button:not(.hidden)')][0]?.dataset.page||'requests';setPage(firstPage);
- if(me.user.role==='branch_user')$('requestModal')?.classList.remove('hidden');
+ if(me.user.role==='branch_user'&&can('create_request'))$('requestModal')?.classList.remove('hidden');
 }
 
 async function refreshAll(){
