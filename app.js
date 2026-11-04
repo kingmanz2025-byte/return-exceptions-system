@@ -84,12 +84,12 @@ async function startApp(){
 async function refreshAll(){
  try{
   const [b,r]=await Promise.all([api('branches'),api('requests')]);
-  const t=state.user.role==='system_admin'?await api('transfers'):{transfers:[]};
+  const t=state.user.permissions?.transfers?await api('transfers'):{transfers:[]};
   state.branches=b.branches||[];
   state.requests=r.requests||[];
   state.transfers=t.transfers||[];
 
-  if(state.user.role==='system_admin'){
+  if(state.user.permissions?.dashboard){
    try{
     const d=await api('dashboard?period='+currentPeriod());
     state.dashboard=d;
@@ -103,15 +103,10 @@ async function refreshAll(){
   fillBranchSelects();
   if(state.user.role==='system_admin'||state.user.permissions?.dashboard){if(state.user.permissions?.dashboard!==false)renderDashboard();if(state.user.permissions?.transfers!==false)renderTransfers();}if(state.user.role==='branch_user'||state.user.permissions?.requests)renderRequests();
 
-  if(state.user.role==='system_admin'){
-   try{const u=await api('users');state.users=u.users||[];state.recoveryRequests=u.recoveryRequests||[]}catch{}
-   renderUsers();loadAdminBranches();renderRecoveryRequests();
-  }
+  if(state.user.permissions?.users){try{const u=await api('users');state.users=u.users||[];state.recoveryRequests=u.recoveryRequests||[]}catch{}renderUsers();renderRecoveryRequests();}
+  if(state.user.permissions?.branches)loadAdminBranches();
 
-  if(state.user.role==='system_admin'){
-   try{const a=await api('audit');state.audit=a.logs||[]}catch{}
-   renderAudit();
-  }
+  if(state.user.permissions?.audit){try{const a=await api('audit');state.audit=a.logs||[]}catch{}renderAudit();}
  }catch(e){message(e.message,true)}
 }
 
