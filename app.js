@@ -74,11 +74,11 @@ async function startApp(){
  $('settingsNav')?.classList.toggle('hidden',!can('branches'));
  $('nav').querySelectorAll('button').forEach(b=>{const key={dashboard:'dashboard',requests:'requests',transfers:'transfers',reports:'reports',users:'users',audit:'audit',settings:'branches'}[b.dataset.page];if(key)b.classList.toggle('hidden',!can(key));});
  $('newRequestBtn').classList.toggle('hidden',!can('create_request'));
- if(me.user.role==='branch_user'){document.querySelector('#requests .filters')?.classList.add('hidden');$('requestList')?.classList.add('hidden');$('newRequestBtn2')?.classList.add('hidden');}
+ if(me.user.role==='branch_user'){document.querySelector('#requests .filters')?.classList.add('hidden');$('requestList')?.classList.add('hidden');$('newRequestBtn2')?.classList.toggle('hidden',!can('create_request'));$('branchUserWelcome')?.classList.toggle('hidden',!can('create_request'));$('requestsPageHint').textContent=can('create_request')?'تقديم طلبات الاستثناء الخاصة بفرعك':'لا توجد صلاحية متاحة على هذه الصفحة';}else{$('branchUserWelcome')?.classList.add('hidden');$('newRequestBtn2')?.classList.toggle('hidden',!can('create_request'));}
  $('transferCreate').classList.toggle('hidden',!can('create_transfer'));
  await refreshAll();
  const firstPage=[...document.querySelectorAll('#nav button:not(.hidden)')][0]?.dataset.page||'requests';setPage(firstPage);
- if(me.user.role==='branch_user'&&can('create_request'))$('requestModal')?.classList.remove('hidden');
+
 }
 
 async function refreshAll(){
