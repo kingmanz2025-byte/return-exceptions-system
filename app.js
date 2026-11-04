@@ -162,8 +162,10 @@ function renderDashboard(){
  if($('pendingBar'))$('pendingBar').style.width=(total?Math.round(pending/total*100):0)+'%';
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
  const q=($('branchSearch').value||'').toLowerCase();
+ const usedFilter=$('branchUsageSearch')?.value||'';
+ if($('branchRanking')){const counts={};req.forEach(r=>{const k=r.branch_id||r.branch_code;counts[k]=(counts[k]||0)+1;});$('branchRanking').innerHTML=[...branches].map(b=>({...b,count:counts[b.id]||counts[b.code]||0})).sort((a,b)=>b.count-a.count).slice(0,8).map((b,i)=>'<div class="dash-row"><b>'+(i+1)+'. '+esc(b.name)+'</b><span>'+b.count+' طلب</span></div>').join('')||'<p>لا توجد بيانات.</p>';}
  $('branchRows').innerHTML=branches
-  .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q))
+  .filter(b=>(b.name+' '+b.code).toLowerCase().includes(q)&&(!usedFilter||Number(b.used||0)>=Number(usedFilter)))
   .map(b=>{
    const base=Number(b.quota??b.monthly_quota??3),inc=Number(b.transferred_in||0),out=Number(b.transferred_out||0),u=Number(b.used||0),av=base+inc-out-u;
    return `<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td>${base}</td><td>${inc}</td><td>${out}</td><td>${u}</td><td><b class="${av<0?'negative':''}">${av}</b></td></tr>`;
