@@ -1,11 +1,12 @@
+
 {
   "name": "إدارة استثناءات المرتجعات",
-  "short_name": "استثناءات",
+  "short_name": "استثناءات المرتجعات",
   "lang": "ar",
   "dir": "rtl",
-  "start_url": "./index.html",
+  "start_url": "./",
   "display": "standalone",
-  "background_color": "#f5f8fc",
+  "background_color": "#f4f7fb",
   "theme_color": "#123b70",
-  "description": "إدارة طلبات استثناء المرتجعات وحصص الفروع"
+  "icons": []
 }
