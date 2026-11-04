@@ -64,6 +64,7 @@ async function startApp(){
  $('loginView').classList.add('hidden');
  $('appView').classList.remove('hidden');
  $('userInfo').textContent=`${me.user.display_name||me.user.username} • ${roleName(me.user.role)}`;
+ if(me.user.must_change_password){$('passwordChangeModal')?.classList.remove('hidden');}
  $('usersNav').classList.toggle('hidden',me.user.role!=='system_admin');
  $('nav').querySelector('[data-page=dashboard]')?.classList.toggle('hidden',me.user.role!=='system_admin');
  $('dashboard').classList.toggle('hidden',me.user.role!=='system_admin');
@@ -101,7 +102,7 @@ async function refreshAll(){
 
   if(state.user.role==='system_admin'){
    try{const u=await api('users');state.users=u.users||[]}catch{}
-   renderUsers();loadAdminBranches();
+   renderUsers();loadAdminBranches();renderRecoveryRequests();
   }
 
   if(state.user.role==='system_admin'){
@@ -351,6 +352,13 @@ $('forgotPasswordBtn')?.addEventListener('click',async()=>{const username=prompt
 $('passwordChangeForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('change-password',{method:'POST',body:JSON.stringify({password:$('newOwnPassword').value})});$('passwordChangeModal').classList.add('hidden');message('تم تغيير كلمة المرور بنجاح');await startApp();}catch(err){message(err.message,true);}});
 async function loadAdminBranches(){try{const d=await api('admin/branches');$('adminBranchList').innerHTML=(d.branches||[]).map(b=>'<article class="item"><b>'+esc(b.code)+' - '+esc(b.name)+'</b><p>الحصة: '+b.monthly_quota+' • '+(b.is_active?'نشط':'موقوف')+'</p><div class="itemactions"><button data-edit-branch="'+b.id+'">تعديل</button><button data-toggle-branch="'+b.id+'">'+(b.is_active?'إيقاف':'تفعيل')+'</button></div></article>').join('');document.querySelectorAll('[data-edit-branch]').forEach(btn=>btn.onclick=async()=>{const b=d.branches.find(x=>String(x.id)===btn.dataset.editBranch);const code=prompt('كود الفرع',b.code);if(code===null)return;const name=prompt('اسم الفرع',b.name);if(name===null)return;const quota=prompt('الحصة الأساسية',b.monthly_quota);if(quota===null)return;try{await api('admin/branches/'+b.id,{method:'PATCH',body:JSON.stringify({code,name,monthlyQuota:Number(quota)})});await loadAdminBranches();await refreshAll();message('تم تحديث الفرع');}catch(e){message(e.message,true);}});document.querySelectorAll('[data-toggle-branch]').forEach(btn=>btn.onclick=async()=>{try{await api('admin/branches/'+btn.dataset.toggleBranch,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await loadAdminBranches();await refreshAll();}catch(e){message(e.message,true);}});}catch(e){message(e.message,true);}}
 $('branchForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('admin/branches',{method:'POST',body:JSON.stringify({code:$('branchCode').value.trim(),name:$('branchName').value.trim(),monthlyQuota:Number($('branchQuota').value)})});e.target.reset();message('تمت إضافة الفرع');await loadAdminBranches();await refreshAll();}catch(err){message(err.message,true);}});
+
+
+function renderRecoveryRequests(){
+ const box=$('recoveryRequestList');if(!box)return;
+ box.innerHTML=(state.recoveryRequests||[]).map(r=>'<article class="item"><b>'+esc(r.username)+'</b><p>'+esc(r.requested_at)+'</p><button data-recovery="'+esc(r.id)+'">تعيين كلمة مرور مؤقتة</button></article>').join('')||'<p>لا توجد طلبات استعادة معلقة.</p>';
+ document.querySelectorAll('[data-recovery]').forEach(b=>b.onclick=async()=>{const p=prompt('كلمة مرور مؤقتة (12 حرفًا على الأقل)');if(!p)return;try{await api('password-recovery/'+b.dataset.recovery,{method:'POST',body:JSON.stringify({decision:'approve',temporaryPassword:p})});message('تمت الموافقة وتعيين كلمة مرور مؤقتة');await refreshAll();}catch(e){message(e.message,true);}});
+}
 
 function renderUsers(){
  $('userList').innerHTML=state.users.map(u=>`
