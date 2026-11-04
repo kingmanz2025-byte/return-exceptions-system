@@ -97,13 +97,11 @@ async function refreshAll(){
    try{const tb=await api('transfer-branches');state.transferBranches=tb.branches||[];}catch(e){state.transferBranches=[];message(e.message,true)}
   }else{state.transferBranches=[];}
   fillBranchSelects();
-  renderDashboard();
-  renderRequests();
-  renderTransfers();
+  if(state.user.role==='system_admin'){renderDashboard();renderTransfers();}else{renderRequests();}
 
   if(state.user.role==='system_admin'){
    try{const u=await api('users');state.users=u.users||[]}catch{}
-   renderUsers();
+   renderUsers();loadAdminBranches();
   }
 
   if(state.user.role==='system_admin'){
@@ -348,6 +346,12 @@ $('userForm').onsubmit=async e=>{
  }catch(err){message(err.message,true)}
 };
 
+
+$('forgotPasswordBtn')?.addEventListener('click',async()=>{const username=prompt('اكتب اسم المستخدم لطلب استعادة كلمة المرور:');if(!username)return;try{await api('password-recovery',{method:'POST',body:JSON.stringify({username})});message('إذا كان الحساب موجودًا، تم تسجيل طلب الاستعادة لمراجعة مدير النظام.');}catch(e){message(e.message,true);}});
+$('passwordChangeForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('change-password',{method:'POST',body:JSON.stringify({password:$('newOwnPassword').value})});$('passwordChangeModal').classList.add('hidden');message('تم تغيير كلمة المرور بنجاح');await startApp();}catch(err){message(err.message,true);}});
+async function loadAdminBranches(){try{const d=await api('admin/branches');$('adminBranchList').innerHTML=(d.branches||[]).map(b=>'<article class="item"><b>'+esc(b.code)+' - '+esc(b.name)+'</b><p>الحصة: '+b.monthly_quota+' • '+(b.is_active?'نشط':'موقوف')+'</p><div class="itemactions"><button data-edit-branch="'+b.id+'">تعديل</button><button data-toggle-branch="'+b.id+'">'+(b.is_active?'إيقاف':'تفعيل')+'</button></div></article>').join('');document.querySelectorAll('[data-edit-branch]').forEach(btn=>btn.onclick=async()=>{const b=d.branches.find(x=>String(x.id)===btn.dataset.editBranch);const code=prompt('كود الفرع',b.code);if(code===null)return;const name=prompt('اسم الفرع',b.name);if(name===null)return;const quota=prompt('الحصة الأساسية',b.monthly_quota);if(quota===null)return;try{await api('admin/branches/'+b.id,{method:'PATCH',body:JSON.stringify({code,name,monthlyQuota:Number(quota)})});await loadAdminBranches();await refreshAll();message('تم تحديث الفرع');}catch(e){message(e.message,true);}});document.querySelectorAll('[data-toggle-branch]').forEach(btn=>btn.onclick=async()=>{try{await api('admin/branches/'+btn.dataset.toggleBranch,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await loadAdminBranches();await refreshAll();}catch(e){message(e.message,true);}});}catch(e){message(e.message,true);}}
+$('branchForm')?.addEventListener('submit',async e=>{e.preventDefault();try{await api('admin/branches',{method:'POST',body:JSON.stringify({code:$('branchCode').value.trim(),name:$('branchName').value.trim(),monthlyQuota:Number($('branchQuota').value)})});e.target.reset();message('تمت إضافة الفرع');await loadAdminBranches();await refreshAll();}catch(err){message(err.message,true);}});
+
 function renderUsers(){
  $('userList').innerHTML=state.users.map(u=>`
   <article class="item">
@@ -355,9 +359,9 @@ function renderUsers(){
     <h3>${esc(u.display_name)}</h3>
     <span class="pill">${roleName(u.role)}</span>
    </div>
-   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p>
+   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions"><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button></div>
   </article>
- `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';
+ `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
 }
 
 async function loadReports(){
