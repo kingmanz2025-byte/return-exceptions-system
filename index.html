@@ -13,7 +13,37 @@
 <body>
 
 <div id="globalMsg" class="notice hidden"></div>
+<section id="setupView" class="login-screen hidden">
+ <div class="login-card">
+  <div class="logo">↩</div>
+  <h1>الإعداد الأول للنظام</h1>
+  <p>إنشاء حساب مدير النظام</p>
 
+  <form id="setupForm">
+   <label>مفتاح الإعداد
+    <input id="setupKey" type="password" autocomplete="off" required>
+   </label>
+
+   <label>اسم المستخدم
+    <input id="setupUsername" autocomplete="username"
+     minlength="4" maxlength="40"
+     pattern="[A-Za-z0-9_.-]+" required>
+   </label>
+
+   <label>الاسم الظاهر
+    <input id="setupDisplayName" maxlength="120" required>
+   </label>
+
+   <label>كلمة المرور (12 حرفًا على الأقل)
+    <input id="setupPassword" type="password"
+     autocomplete="new-password" minlength="12" required>
+   </label>
+
+   <button class="primary" type="submit">إنشاء المدير</button>
+   <p id="setupError" class="error-text"></p>
+  </form>
+ </div>
+</section>
 <section id="loginView" class="login-screen hidden">
  <div class="login-card">
   <div class="logo">↩</div>
