@@ -768,3 +768,29 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
 #reports .panelhead{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 #reports table{min-width:980px}
 #reports .tablewrap{overflow:auto}
+
+
+/* Executive dashboard */
+.dashboard-strip{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:0 0 16px}
+.dash-stat{position:relative;overflow:hidden;padding:17px 18px;border:1px solid #eddfd2;border-radius:16px;background:linear-gradient(145deg,#fff,#fff9f5);box-shadow:0 8px 24px #2b1a1009}
+.dash-stat:after{content:"";position:absolute;right:0;top:0;bottom:0;width:4px;background:linear-gradient(#ed1c2e,#d6a52b)}
+.dash-stat span,.dash-stat small{display:block;color:#777;font-size:12px}
+.dash-stat b{display:block;color:#c91524;font-size:27px;line-height:1.4;margin:5px 0}
+.dashboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.dashboard-grid .panel{margin:0}
+.dashboard-wide{grid-column:1/-1}
+.dashboard-health .panelhead strong{font-size:25px;color:#c91524}
+.health-line{display:grid;grid-template-columns:105px 1fr;align-items:center;gap:12px;margin:16px 0;font-size:12px;color:#5d6470}
+.health-line .track{height:11px}
+.health-line .track i{background:linear-gradient(90deg,#d6a52b,#ed1c2e);transition:width .35s}
+.health-line .track.orange i{background:#d99a32}
+.health-line .track.red i{background:#bd3b42}
+.dashboard-feed{display:grid;gap:9px}
+.dash-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid #f0e8e1}
+.dash-row:last-child{border-bottom:0}
+.dash-row b,.dash-row small{display:block}
+.dash-row b{font-size:13px;color:#262626}
+.dash-row small{font-size:11px;color:#888;margin-top:3px}
+.dash-row strong{font-size:12px;color:#b91220;white-space:nowrap}
+.negative{color:#bd202b}
+@media(max-width:760px){.dashboard-strip{grid-template-columns:1fr 1fr}.dashboard-grid{grid-template-columns:1fr}.dashboard-wide{grid-column:auto}.dash-row{grid-template-columns:1fr auto}.dash-row strong{grid-column:1/-1}.health-line{grid-template-columns:90px 1fr}}
