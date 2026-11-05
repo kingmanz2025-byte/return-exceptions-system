@@ -194,8 +194,9 @@ function renderRequests(){
   <article class="item">
    <div class="itemtop">
     <div>
-     <h3>${esc(r.id)} • ${esc(r.branch_name)} (${esc(r.branch_code)})</h3>
-     <p>الفاتورة: ${esc(r.invoice_number)} • ${esc(r.created_at)}</p>
+     <h3>طلب رقم ${esc(r.request_number||r.id)} • ${esc(r.branch_name)} (${esc(r.branch_code)})</h3>
+     <p>الفاتورة: ${esc(r.invoice_number)} • تاريخ الفاتورة: ${esc(r.invoice_date||'—')}</p>
+     <p>تاريخ طلب الاستثناء: ${esc(r.created_at)}</p>
      <p><b>مقدم الطلب:</b> ${esc(r.creator_name||'غير محدد')}</p>
     </div>
     <span class="pill ${r.status}">${statusName(r.status)}</span>
@@ -203,7 +204,7 @@ function renderRequests(){
    <p><b>السبب:</b> ${esc(r.reason==='سبب آخر'?(r.other_reason||r.reason):r.reason)} • <b>القيمة:</b> ${money(r.amount)} ج.م</p>
    <p>${esc(r.details)}</p>
    ${r.customer_name?`<p>العميل: ${esc(r.customer_name)}</p>`:''}
-   <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')} • <b>الرقم القومي:</b> ${esc(r.national_id||'—')}</p>
+   <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')}</p>
    <p><b>كود الصنف:</b> ${esc(r.item_code||'—')} • <b>اسم الصنف:</b> ${esc(r.item_name||'—')}</p>
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
    ${r.status==='pending'&&state.user.role==='system_admin'?`
@@ -392,7 +393,7 @@ async function loadReports(){
   const statusLabel=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
   const branchTerm=branch.toLowerCase();
   $('balanceReportRows').innerHTML=(d.balances||[]).filter(x=>!branchTerm||(String(x.code)+' '+String(x.name)).toLowerCase().includes(branchTerm)).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
-  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.national_id)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
+  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.request_number||x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.invoice_date||'—')}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
   $('transferReportRows').innerHTML=(d.transfers||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.from_code)} - ${esc(x.from_name)}</td><td>${esc(x.to_code)} - ${esc(x.to_name)}</td><td>${x.quantity}</td><td>${statusLabel(x.status)}</td><td>${esc(x.reason)}</td><td>${esc(x.requester_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decided_at)}</td></tr>`).join('')||'<tr><td colspan="11">لا توجد تحويلات في الفترة المحددة</td></tr>';
  }catch(e){message(e.message,true)}
 }
