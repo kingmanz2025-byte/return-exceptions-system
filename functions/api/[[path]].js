@@ -29,7 +29,7 @@ const DEFAULT_PERMISSIONS={
  report_viewer:{reports:true}
 };
 function parsePermissions(user){try{return {...(DEFAULT_PERMISSIONS[user.role]||{}),...JSON.parse(user.permissions_json||"{}")};}catch{return DEFAULT_PERMISSIONS[user.role]||{};}}
-function allowed(user,key){return parsePermissions(user)[key]===true;}
+function allowed(user,key){if(user?.role==="system_admin"&&["review_requests","approve_requests","reject_requests"].includes(key))return true;return parsePermissions(user)[key]===true;}
 let returnsFieldsMigration;
 async function ensureReturnsFields(env){
  if(returnsFieldsMigration)return returnsFieldsMigration;
