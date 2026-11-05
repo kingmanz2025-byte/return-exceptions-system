@@ -612,3 +612,12 @@ function detectPrayerLocation(){
 }
 document.getElementById('prayerLocationBtn')?.addEventListener('click',choosePrayerCity);detectPrayerLocation();setInterval(updatePrayerCountdown,1000);setInterval(loadPrayerSchedule,6*60*60*1000);
 refreshHeaderClock();setInterval(refreshHeaderClock,1000);
+setInterval(async()=>{
+ if(document.hidden||!state.user)return;
+ try{
+  await api('me');
+  if(state.user.permissions?.users&&document.querySelector('#users.page:not(.hidden)')){
+   const d=await api('users');state.users=d.users||[];renderUsers();
+  }
+ }catch{}
+},30000);
