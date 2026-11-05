@@ -23,7 +23,11 @@ async function passwordHash(password,salt){
 }
 
 const uid=()=>crypto.randomUUID();
-const DEFAULT_PERMISSIONS={system_admin:{dashboard:true,requests:true,create_request:true,decide_requests:true,transfers:true,create_transfer:true,decide_transfers:true,reports:true,users:true,branches:true,audit:true},branch_user:{create_request:true},report_viewer:{reports:true}};
+const DEFAULT_PERMISSIONS={
+ system_admin:{dashboard:true,requests:true,create_request:true,decide_requests:true,approve_requests:true,reject_requests:true,delete_own_requests:true,delete_any_requests:true,transfers:true,create_transfer:true,decide_transfers:true,approve_transfers:true,reject_transfers:true,reports:true,users:true,branches:true,audit:true},
+ branch_user:{create_request:true,delete_own_requests:true},
+ report_viewer:{reports:true}
+};
 function parsePermissions(user){try{return {...(DEFAULT_PERMISSIONS[user.role]||{}),...JSON.parse(user.permissions_json||"{}")};}catch{return DEFAULT_PERMISSIONS[user.role]||{};}}
 function allowed(user,key){return parsePermissions(user)[key]===true;}
 let returnsFieldsMigration;
@@ -520,9 +524,9 @@ export async function onRequest({request,env}) {
   const target=await env.DB.prepare("SELECT e.*,b.code branch_code,b.name branch_name,cu.display_name creator_name,du.display_name decision_maker FROM exception_requests e LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN users cu ON cu.id=e.created_by LEFT JOIN users du ON du.id=e.decided_by WHERE e.id=?").bind(id).first();
   if(!target)return fail("الطلب غير موجود",404);
   const isOwner=target.created_by===user.id;
-  const canDeleteOwn=isOwner&&["pending","rejected","approved"].includes(target.status);
-  const canDeleteAdmin=user.role==="system_admin"&&["rejected","approved"].includes(target.status);
-  if(!canDeleteOwn&&!canDeleteAdmin)return fail("لا يمكن حذف هذا الطلب حسب حالته وصلاحياتك",403);
+  const canDeleteOwn=isOwner&&allowed(user,"delete_own_requests")&&["pending","rejected","approved"].includes(target.status);
+  const canDeleteAny=allowed(user,"delete_any_requests")&&["rejected","approved"].includes(target.status);
+  if(!canDeleteOwn&&!canDeleteAny)return fail("ليس لديك صلاحية حذف هذا الطلب أو أن حالته لا تسمح بذلك",403);
   const snapshot={...target};
   await env.DB.prepare("INSERT OR REPLACE INTO deleted_exception_requests(id,request_number,branch_id,request_snapshot,original_status,created_by,creator_name,decided_by,decision_maker,deleted_by,deleter_name,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)").bind(target.id,target.request_number||null,target.branch_id,JSON.stringify(snapshot),target.status,target.created_by||null,target.creator_name||null,target.decided_by||null,target.decision_maker||null,user.id,user.display_name).run();
   if(target.status==="approved"){
@@ -534,10 +538,12 @@ export async function onRequest({request,env}) {
  }
 
  if(path==="decisions"&&method==="POST"){
-  if(!allowed(user,"decide_requests"))
-   return fail("القرار لمدير النظام فقط",403);
+  const decisionInput=await body(request);
+  const decisionPermission=decisionInput?.decision==="approve"?"approve_requests":"reject_requests";
+  if(!allowed(user,decisionPermission)&&!allowed(user,"decide_requests"))
+   return fail("ليس لديك صلاحية تنفيذ هذا القرار",403);
 
-  const x=await body(request);
+  const x=decisionInput;
 
   const r=await env.DB.prepare(
    "SELECT * FROM exception_requests WHERE id=?"
