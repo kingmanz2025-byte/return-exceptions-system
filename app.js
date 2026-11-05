@@ -43,15 +43,17 @@ function message(s,error=false){
 }
 
 function setPage(p){
- if(state.user?.role!=='system_admin'&&p!=='requests'){p='requests';}
+ const permissions=state.user?.permissions||{};
+ const pagePermission={dashboard:'dashboard',requests:'requests',transfers:'transfers',reports:'reports',users:'users',audit:'audit',settings:'branches'}[p];
+ if(!pagePermission||!permissions[pagePermission]){p=permissions.requests?'requests':(Object.keys(pagePermission||{}).find(k=>permissions[k])||'requests');}
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));
  document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
- if(p==='dashboard'&&state.user?.role==='system_admin')renderDashboard();
+ if(p==='dashboard'&&state.user?.permissions?.dashboard)renderDashboard();
  if(p==='requests')renderRequests();
- if(p==='transfers'&&state.user?.role==='system_admin')renderTransfers();
- if(p==='users'&&state.user?.role==='system_admin')renderUsers();
- if(p==='audit'&&state.user?.role==='system_admin')renderAudit();
- if(p==='reports'&&state.user?.role==='system_admin')loadReports();
+ if(p==='transfers'&&state.user?.permissions?.transfers)renderTransfers();
+ if(p==='users'&&state.user?.permissions?.users)renderUsers();
+ if(p==='audit'&&state.user?.permissions?.audit)renderAudit();
+ if(p==='reports'&&state.user?.permissions?.reports)loadReports();
 }
 
 document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>setPage(b.dataset.page)));
@@ -222,10 +224,10 @@ function renderRequests(){
    <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')}</p>
    <p><b>كود الصنف:</b> ${esc(r.item_code||'—')} • <b>اسم الصنف:</b> ${esc(r.item_name||'—')}</p>
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
-   ${r.status==='pending'&&(state.user.permissions?.approve_requests||state.user.permissions?.decide_requests||state.user.role==='system_admin')?`
+   ${r.status==='pending'&&((state.user.permissions?.approve_requests||state.user.permissions?.decide_requests)||(state.user.permissions?.reject_requests||state.user.permissions?.decide_requests))?`
     <div class="itemactions">
-     <button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>
-     <button class="reject" data-decision="reject" data-id="${esc(r.id)}" ${(state.user.permissions?.reject_requests||state.user.permissions?.decide_requests||state.user.role==='system_admin')?'':'hidden'}>رفض</button>
+     ${(state.user.permissions?.approve_requests||state.user.permissions?.decide_requests)?`<button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>`:''}
+     ${(state.user.permissions?.reject_requests||state.user.permissions?.decide_requests)?`<button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>`:''}
     </div>`:''}
    ${((r.created_by===state.user.id&&state.user.permissions?.delete_own_requests&&['pending','rejected','approved'].includes(r.status))||(state.user.permissions?.delete_any_requests&&['rejected','approved'].includes(r.status)))?`<div class="itemactions"><button class="reject" data-request-delete="${esc(r.id)}">حذف الطلب</button></div>`:''}
   </article>
@@ -334,10 +336,10 @@ function renderTransfers(){
    <p><b>مقدم التحويل:</b> ${esc(t.requester_name||'غير محدد')} • <b>تاريخ الطلب:</b> ${esc(t.created_at||'')}</p>
    ${t.decided_by_name?`<p><b>صاحب القرار:</b> ${esc(t.decided_by_name)} • ${esc(t.decided_at||'')}</p>`:''}
    ${t.decision_note?`<p><b>ملاحظة القرار:</b> ${esc(t.decision_note)}</p>`:''}
-   ${state.user.role==='system_admin'&&t.status==='pending'?`
+   ${t.status==='pending'&&((state.user.permissions?.approve_transfers||state.user.permissions?.decide_transfers)||(state.user.permissions?.reject_transfers||state.user.permissions?.decide_transfers))?`
     <div class="itemactions">
-     <button class="approve" data-transfer="approve" data-id="${esc(t.id)}">اعتماد</button>
-     <button class="reject" data-transfer="reject" data-id="${esc(t.id)}">رفض</button>
+     ${(state.user.permissions?.approve_transfers||state.user.permissions?.decide_transfers)?`<button class="approve" data-transfer="approve" data-id="${esc(t.id)}">اعتماد</button>`:''}
+     ${(state.user.permissions?.reject_transfers||state.user.permissions?.decide_transfers)?`<button class="reject" data-transfer="reject" data-id="${esc(t.id)}">رفض</button>`:''}
     </div>`:''}
   </article>
  `).join('')||'<div class="item">لا توجد تحويلات.</div>';
