@@ -36,6 +36,9 @@ async function ensureReturnsFields(env){
  returnsFieldsMigration=(async()=>{
   const add=async(table,column,definition)=>{const cols=await env.DB.prepare("PRAGMA table_info("+table+")").all();if(!cols.results.some(c=>c.name===column))await env.DB.prepare("ALTER TABLE "+table+" ADD COLUMN "+column+" "+definition).run();};
   await add("users","permissions_json","TEXT NOT NULL DEFAULT '{}' ");
+  await add("users","last_login_at","TEXT");
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY,user_id TEXT NOT NULL,token_hash TEXT NOT NULL UNIQUE,expires_at TEXT NOT NULL,created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  await add("sessions","last_seen_at","TEXT");
   await add("users","deleted_at","TEXT");
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS deleted_exception_requests (id TEXT PRIMARY KEY, request_number INTEGER, branch_id INTEGER, request_snapshot TEXT NOT NULL, original_status TEXT NOT NULL, created_by TEXT, creator_name TEXT, decided_by TEXT, decision_maker TEXT, deleted_by TEXT, deleter_name TEXT, deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"],["invoice_date","TEXT"],["request_number","INTEGER"]])await add("exception_requests",c,d);
@@ -68,7 +71,7 @@ async function auth(req,env){
  const s=await env.DB.prepare(
   "SELECT u.id,u.username,u.display_name,u.role,u.is_active,u.must_change_password,u.permissions_json FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1 AND u.deleted_at IS NULL"
  ).bind(h,new Date().toISOString()).first();
-
+ if(s)await env.DB.prepare("UPDATE sessions SET last_seen_at=? WHERE token_hash=?").bind(new Date().toISOString(),h).run();
  return s||null;
 }
 
@@ -237,14 +240,10 @@ export async function onRequest({request,env}) {
   const id=uid();
   const expires=new Date(Date.now()+7*86400000).toISOString();
 
-  await env.DB.prepare(
-   "INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES(?,?,?,?)"
-  ).bind(
-   id,
-   u.id,
-   await sha(token),
-   expires
-  ).run();
+  const loginAt=new Date().toISOString();
+  await env.DB.prepare("INSERT INTO sessions(id,user_id,token_hash,expires_at,last_seen_at) VALUES(?,?,?,?,?)").bind(id,u.id,await sha(token),expires,loginAt).run();
+  await env.DB.prepare("UPDATE users SET last_login_at=? WHERE id=?").bind(loginAt,u.id).run();
+  await audit(env,{id:u.id,display_name:u.display_name},"user_login","user",u.id,{username:u.username});
 
   return new Response(JSON.stringify({
    ok:true,
@@ -595,9 +594,10 @@ export async function onRequest({request,env}) {
    return fail("صلاحية مدير النظام مطلوبة",403);
 
   await ensureRecovery(env);
-  const rows=await env.DB.prepare("SELECT id,username,display_name,role,is_active,created_at,must_change_password,permissions_json FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC").all();
+  const rows=await env.DB.prepare("SELECT u.id,u.username,u.display_name,u.role,u.is_active,u.created_at,u.last_login_at,u.must_change_password,u.permissions_json,MAX(s.last_seen_at) last_seen_at FROM users u LEFT JOIN sessions s ON s.user_id=u.id AND s.expires_at>? WHERE u.deleted_at IS NULL GROUP BY u.id ORDER BY u.created_at DESC").bind(new Date(Date.now()-120000).toISOString()).all();
   const recovery=await env.DB.prepare("SELECT id,username,requested_at FROM password_recovery_requests WHERE status='pending' ORDER BY requested_at DESC").all();
-  return json({ok:true,users:rows.results.map(u=>({...u,permissions:parsePermissions(u)})),recoveryRequests:recovery.results});
+  const now=Date.now();
+  return json({ok:true,users:rows.results.map(u=>({...u,is_online:!!u.last_seen_at&&(now-Date.parse(u.last_seen_at)<120000),permissions:parsePermissions(u)})),recoveryRequests:recovery.results});
  }
 
  // إنشاء مستخدم
