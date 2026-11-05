@@ -230,7 +230,9 @@ function renderRequests(){
    <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')}</p>
    <p><b>كود الصنف:</b> ${esc(r.item_code||'—')} • <b>اسم الصنف:</b> ${esc(r.item_name||'—')}</p>
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
-   ${r.status==='pending'&&(state.user.permissions?.approve_requests||state.user.permissions?.reject_requests)?`
+   ${r.status==='pending'&&!r.reviewed_at&&state.user.permissions?.review_requests?'<div class="itemactions"><button class="approve" data-review-request="'+esc(r.id)+'">مراجعة الطلب وإحالته للاعتماد</button></div>':''}
+   ${r.reviewed_at?'<p><b>تمت المراجعة بواسطة:</b> '+esc(r.reviewer_name||'—')+' • '+esc(formatAppDateTime(r.reviewed_at))+'</p>':''}
+   ${r.status==='pending'&&r.reviewed_at&&r.reviewed_by!==state.user.id&&(state.user.permissions?.approve_requests||state.user.permissions?.reject_requests)?`
     <div class="itemactions">
      ${state.user.permissions?.approve_requests?`<button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>`:''}
      ${state.user.permissions?.reject_requests?`<button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>`:''}
@@ -239,6 +241,7 @@ function renderRequests(){
   </article>
  `).join('')||'<div class="item">لا توجد طلبات مطابقة.</div>';
 
+ document.querySelectorAll('[data-review-request]').forEach(b=>b.onclick=async()=>{const note=prompt('ملاحظات المراجعة (اختياري):')||'';try{await api('reviews',{method:'POST',body:JSON.stringify({id:b.dataset.reviewRequest,note})});message('تمت مراجعة الطلب وإحالته للاعتماد النهائي');await refreshAll();}catch(e){message(e.message,true);}});
  document.querySelectorAll('[data-decision]').forEach(b=>
   b.onclick=()=>decide(b.dataset.id,b.dataset.decision)
  );
@@ -402,7 +405,7 @@ function renderRecoveryRequests(){
 
 const PERMISSION_GROUPS=[
  {title:"لوحة النظام",items:[["dashboard","عرض لوحة المتابعة"],["requests","عرض طلبات الاستثناء"],["create_request","إنشاء طلب استثناء"],["reports","عرض التقارير"],["audit","عرض سجل التدقيق"]]},
- {title:"قرارات طلبات الاستثناء",items:[["approve_requests","اعتماد الطلبات"],["reject_requests","رفض الطلبات"],["delete_own_requests","حذف الطلبات التي أنشأها بنفسه"],["delete_any_requests","حذف طلبات الآخرين المعتمدة أو المرفوضة"]]},
+ {title:"مراجعة واعتماد طلبات الاستثناء",items:[["review_requests","مراجعة الطلبات وإحالتها للاعتماد"],["approve_requests","الاعتماد النهائي للطلبات"],["reject_requests","الرفض النهائي للطلبات"],["delete_own_requests","حذف الطلبات التي أنشأها بنفسه"],["delete_any_requests","حذف طلبات الآخرين المعتمدة أو المرفوضة"]]},
  {title:"تحويل الحصص",items:[["transfers","عرض تحويلات الحصص"],["create_transfer","إنشاء طلب تحويل"],["approve_transfers","اعتماد تحويلات الحصص"],["reject_transfers","رفض تحويلات الحصص"]]},
  {title:"إدارة النظام",items:[["users","إدارة المستخدمين والصلاحيات"],["branches","إدارة الفروع والحصص"]]}
 ];
