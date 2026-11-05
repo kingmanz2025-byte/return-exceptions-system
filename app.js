@@ -227,7 +227,7 @@ function renderRequests(){
      <button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>
      <button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>
     </div>`:''}
-   ${((r.created_by===state.user.id&&['pending','rejected'].includes(r.status))||(state.user.role==='system_admin'&&r.status==='rejected'))?`<div class="itemactions"><button class="reject" data-request-delete="${esc(r.id)}">حذف الطلب</button></div>`:''}
+   ${((r.created_by===state.user.id&&['pending','rejected','approved'].includes(r.status))||(state.user.role==='system_admin'&&['rejected','approved'].includes(r.status)))?`<div class="itemactions"><button class="reject" data-request-delete="${esc(r.id)}">حذف الطلب</button></div>`:''}
   </article>
  `).join('')||'<div class="item">لا توجد طلبات مطابقة.</div>';
 
