@@ -206,7 +206,7 @@
  </div>
  <div class="panel report-filter"><label>شهر أرصدة الفروع<input id="reportPeriod" type="month"></label><label>من تاريخ<input id="reportFrom" type="date"></label><label>إلى تاريخ<input id="reportTo" type="date"></label><label>بحث بالفرع<input id="reportBranch" placeholder="كود الفرع أو اسمه"></label><button class="primary" id="loadReportsBtn">عرض التقرير</button></div>
  <div class="panel report-panel hidden" data-report-panel="balance"><div class="panelhead"><h2>ملخص أرصدة الفروع</h2><button class="ghost" data-export="balanceTable" data-filename="أرصدة-الفروع">تنزيل Excel</button></div><div class="tablewrap"><table id="balanceTable"><thead><tr><th>كود الفرع</th><th>الفرع</th><th>الحصة الأساسية</th><th>وارد</th><th>صادر</th><th>المستخدم</th><th>المتاح</th></tr></thead><tbody id="balanceReportRows"></tbody></table></div></div>
- <div class="panel report-panel hidden" data-report-panel="requests"><div class="panelhead"><h2>تقرير طلبات الاستثناء</h2><button class="ghost" data-export="requestReportTable" data-filename="طلبات-الاستثناء">تنزيل Excel</button></div><div class="tablewrap"><table id="requestReportTable"><thead><tr><th>رقم الطلب</th><th>الفترة</th><th>كود الفرع</th><th>الفرع</th><th>الفاتورة</th><th>العميل</th><th>تليفون العميل</th><th>الرقم القومي</th><th>كود الصنف</th><th>اسم الصنف</th><th>القيمة</th><th>السبب</th><th>الحالة</th><th>مقدم الطلب</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>ملاحظات القرار</th></tr></thead><tbody id="requestReportRows"></tbody></table></div></div>
+ <div class="panel report-panel hidden" data-report-panel="requests"><div class="panelhead"><h2>تقرير طلبات الاستثناء</h2><button class="ghost" data-export="requestReportTable" data-filename="طلبات-الاستثناء">تنزيل Excel</button></div><div class="tablewrap"><table id="requestReportTable"><thead><tr><th>رقم الطلب</th><th>الفترة</th><th>كود الفرع</th><th>الفرع</th><th>الفاتورة</th><th>العميل</th><th>تليفون العميل</th><th>تاريخ الفاتورة</th><th>كود الصنف</th><th>اسم الصنف</th><th>القيمة</th><th>السبب</th><th>الحالة</th><th>مقدم الطلب</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>ملاحظات القرار</th></tr></thead><tbody id="requestReportRows"></tbody></table></div></div>
  <div class="panel report-panel hidden" data-report-panel="transfers"><div class="panelhead"><h2>تقرير تحويلات الحصص</h2><button class="ghost" data-export="transferReportTable" data-filename="تحويلات-الحصص">تنزيل Excel</button></div><div class="tablewrap"><table id="transferReportTable"><thead><tr><th>رقم التحويل</th><th>الفترة</th><th>الفرع المانح</th><th>الفرع المستفيد</th><th>الكمية</th><th>الحالة</th><th>سبب التحويل</th><th>مقدم التحويل</th><th>صاحب القرار</th><th>تاريخ الطلب</th><th>تاريخ القرار</th></tr></thead><tbody id="transferReportRows"></tbody></table></div></div>
 </section>
 
@@ -250,7 +250,7 @@
  </div>
 </section>
 
-<section id="settings" class="page"><div class="pagehead"><div><h1>إعدادات النظام</h1><p>إدارة الفروع والحصص الأساسية</p></div></div><div class="panel"><h2>إضافة فرع</h2><form id="branchForm" class="formgrid"><label>كود الفرع<input id="branchCode" required></label><label>اسم الفرع<input id="branchName" required></label><label>الحصة الأساسية<input id="branchQuota" type="number" min="0" step="1" value="3" required></label><button class="primary" type="submit">إضافة الفرع</button></form></div><div class="panel"><h2>الفروع المسجلة</h2><div id="adminBranchList" class="cards"></div></div></section>
+<section id="settings" class="page"><div class="pagehead"><div><h1>إعدادات النظام</h1><p>إدارة الفروع والحصص وأسباب الاستثناء</p></div></div><div class="panel"><h2>إدارة أسباب الاستثناء</h2><form id="reasonForm" class="formgrid"><label class="full">سبب جديد<input id="newReason" maxlength="120" required></label><button class="primary" type="submit">إضافة السبب</button></form><div id="reasonSettingsList" class="cards"></div></div><div class="panel"><h2>إضافة فرع</h2><form id="branchForm" class="formgrid"><label>كود الفرع<input id="branchCode" required></label><label>اسم الفرع<input id="branchName" required></label><label>الحصة الأساسية<input id="branchQuota" type="number" min="0" step="1" value="3" required></label><button class="primary" type="submit">إضافة الفرع</button></form></div><div class="panel"><h2>الفروع المسجلة</h2><div id="adminBranchList" class="cards"></div></div></section>
 <section id="audit" class="page">
  <div class="pagehead">
   <div>
@@ -286,8 +286,8 @@
    <label>رقم تليفون العميل
     <input id="customerPhone" inputmode="numeric" maxlength="11" pattern="0[0-9]{10}" placeholder="01xxxxxxxxx" required>
    </label>
-   <label>الرقم القومي
-    <input id="nationalId" inputmode="numeric" maxlength="14" pattern="[0-9]{14}" required>
+   <label>تاريخ الفاتورة
+    <input id="invoiceDate" type="date" required>
    </label>
    <label>كود الصنف
     <input id="itemCode" maxlength="80" required>
@@ -301,14 +301,7 @@
    </label>
 
    <label class="full">سبب الاستثناء
-    <select id="reason" required>
-     <option value="">اختر السبب</option>
-     <option>خارج فترة المرتجع</option>
-     <option>منتج مستخدم</option>
-     <option>شرط التغليف</option>
-     <option>خطأ تشغيلي</option>
-     <option>سبب آخر</option>
-    </select>
+    <select id="reason" required><option value="">اختر السبب</option></select>
    </label>
 
    <label class="full hidden" id="otherReasonWrap">اكتب السبب الآخر
