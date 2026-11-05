@@ -997,3 +997,17 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
 #reports table .empty-cell{padding:24px;text-align:center;color:#718096;font-weight:700}
 #reports .report-panel .tablewrap::-webkit-scrollbar{height:10px}
 #reports .report-panel .tablewrap::-webkit-scrollbar-thumb{background:#b9c7d8;border-radius:10px}
+
+/* User permission control center */
+.user-permissions-modal{width:min(920px,96vw);max-height:92vh;overflow:auto}
+.user-permissions-modal .modalhead{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:18px}
+.user-permissions-modal .modalhead p{margin:5px 0;color:#64748b;font-size:13px}
+.permission-section,.permission-group{border:1px solid #dce5ef;border-radius:12px;padding:14px;margin:14px 0;background:#fbfcfe}
+.permission-section>h3,.permission-group>h3{margin:0 0 12px;color:#123b70;font-size:15px}
+.permission-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.permission-check{display:flex;align-items:center;gap:9px;padding:10px 12px;border:1px solid #e1e8f0;border-radius:9px;background:#fff;cursor:pointer;font-size:13px}
+.permission-check input{width:17px;height:17px;accent-color:#123b70;flex:0 0 auto}
+.permission-check small{color:#64748b}
+.permission-footer{display:flex;justify-content:flex-end;gap:10px;padding-top:14px;position:sticky;bottom:-16px;background:#fff}
+.user-permission-summary{font-size:12px;color:#64748b}
+@media(max-width:640px){.permission-grid{grid-template-columns:1fr}.user-permissions-modal{width:100%;max-height:95dvh}.permission-footer{bottom:-16px}}
