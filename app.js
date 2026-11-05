@@ -45,7 +45,10 @@ function message(s,error=false){
 function setPage(p){
  const permissions=state.user?.permissions||{};
  const pagePermission={dashboard:'dashboard',requests:'requests',transfers:'transfers',reports:'reports',users:'users',audit:'audit',settings:'branches'}[p];
- if(!pagePermission||!permissions[pagePermission]){p=permissions.requests?'requests':(Object.keys(pagePermission||{}).find(k=>permissions[k])||'requests');}
+ if(!pagePermission||!permissions[pagePermission]){
+  const first=[...document.querySelectorAll('#nav button:not(.hidden)')].map(x=>x.dataset.page).find(Boolean);
+  p=first||'requests';
+ }
  document.querySelectorAll('.page').forEach(x=>x.classList.toggle('active',x.id===p));
  document.querySelectorAll('#nav button').forEach(x=>x.classList.toggle('active',x.dataset.page===p));
  if(p==='dashboard'&&state.user?.permissions?.dashboard)renderDashboard();
@@ -91,7 +94,10 @@ async function startApp(){
  $('settingsNav')?.classList.toggle('hidden',!can('branches'));
  $('nav').querySelectorAll('button').forEach(b=>{const key={dashboard:'dashboard',requests:'requests',transfers:'transfers',reports:'reports',users:'users',audit:'audit',settings:'branches'}[b.dataset.page];if(key)b.classList.toggle('hidden',!can(key));});
  $('newRequestBtn').classList.toggle('hidden',!can('create_request'));
- if(me.user.role==='branch_user'){document.querySelector('#requests .filters')?.classList.add('hidden');$('requestList')?.classList.add('hidden');$('newRequestBtn2')?.classList.toggle('hidden',!can('create_request'));$('branchUserWelcome')?.classList.toggle('hidden',!can('create_request'));$('requestsPageHint').textContent=can('create_request')?'تقديم طلبات الاستثناء الخاصة بفرعك':'لا توجد صلاحية متاحة على هذه الصفحة';}else{$('branchUserWelcome')?.classList.add('hidden');$('newRequestBtn2')?.classList.toggle('hidden',!can('create_request'));}
+ $('requestList')?.classList.toggle('hidden',!can('requests'));
+ $('newRequestBtn2')?.classList.toggle('hidden',!can('create_request'));
+ $('branchUserWelcome')?.classList.toggle('hidden',!(me.user.role==='branch_user'&&can('create_request')));
+ $('requestsPageHint').textContent=can('create_request')?'تقديم طلبات الاستثناء الخاصة بفرعك':'عرض طلبات الاستثناء حسب الصلاحيات الممنوحة';
  $('transferCreate').classList.toggle('hidden',!can('create_transfer'));
  await refreshAll();
  const firstPage=[...document.querySelectorAll('#nav button:not(.hidden)')][0]?.dataset.page||'requests';setPage(firstPage);
