@@ -5,6 +5,21 @@ const roleName=r=>({system_admin:'مدير النظام',branch_user:'مستخد
 const statusName=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const money=n=>Number(n||0).toLocaleString('ar-EG',{maximumFractionDigits:2});
+function formatAppDateTime(value){
+ if(!value)return '—';
+ const raw=String(value).trim();let d=null;
+ const m=raw.match(/^(\d{2}):(\d{2}):(\d{2})\s+(\d{2})-(\d{2})-(\d{4})$/);
+ if(m)d=new Date(Number(m[6]),Number(m[5])-1,Number(m[4]),Number(m[1]),Number(m[2]),Number(m[3]));
+ else{const parsed=new Date(raw);if(!Number.isNaN(parsed.getTime()))d=parsed;}
+ if(!d)return raw;
+ return new Intl.DateTimeFormat('ar-EG',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:true}).format(d);
+}
+function formatPrayerTime(value){
+ const [hour,minute]=String(value||'').split(':').map(Number);
+ if(!Number.isFinite(hour)||!Number.isFinite(minute))return value||'—';
+ const d=new Date();d.setHours(hour,minute,0,0);
+ return new Intl.DateTimeFormat('ar-EG',{hour:'2-digit',minute:'2-digit',hour12:true}).format(d);
+}
 const currentPeriod=()=>{
  const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Africa/Cairo',year:'numeric',month:'2-digit'}).formatToParts(new Date());
  const year=parts.find(x=>x.type==='year')?.value;
@@ -166,12 +181,12 @@ function renderDashboard(){
  if($('rejectedBar'))$('rejectedBar').style.width=(total?Math.round(rejected/total*100):0)+'%';
  if($('recentRequests')){
   $('recentRequests').innerHTML=[...req].sort((x,y)=>String(y.created_at||'').localeCompare(String(x.created_at||''))).slice(0,5).map(r=>`
-   <div class="dash-row"><div><b>${esc(r.branch_name||'فرع غير محدد')}</b><small>${esc(r.id)} · ${esc(r.creator_name||'')}</small></div><span class="pill ${esc(r.status)}">${statusName(r.status)}</span><strong>${money(r.amount)} ج.م</strong></div>`
+   <div class="dash-row"><div><b>${esc(r.branch_name||'فرع غير محدد')}</b><small>طلب رقم ${esc(r.request_number||'—')} · ${esc(r.creator_name||'')}</small></div><span class="pill ${esc(r.status)}">${statusName(r.status)}</span><strong>${money(r.amount)} ج.م</strong></div>`
   ).join('')||'<p class="muted">لا توجد طلبات مسجلة حتى الآن.</p>';
  }
  if($('recentTransfers')){
   $('recentTransfers').innerHTML=state.user?.role==='system_admin'
-   ?[...transfers].slice(0,5).map(t=>`<div class="dash-row"><div><b>${esc(t.from_branch_name||'')} ← ${esc(t.to_branch_name||'')}</b><small>${esc(t.id)} · ${esc(t.created_at||'')}</small></div><span class="pill ${esc(t.status)}">${statusName(t.status)}</span><strong>${Number(t.quantity||0)} حصة</strong></div>`).join('')||'<p class="muted">لا توجد تحويلات مسجلة.</p>'
+   ?[...transfers].slice(0,5).map(t=>`<div class="dash-row"><div><b>${esc(t.from_branch_name||'')} ← ${esc(t.to_branch_name||'')}</b><small>${esc(t.id)} · ${esc(formatAppDateTime(t.created_at))}</small></div><span class="pill ${esc(t.status)}">${statusName(t.status)}</span><strong>${Number(t.quantity||0)} حصة</strong></div>`).join('')||'<p class="muted">لا توجد تحويلات مسجلة.</p>'
    :'<p class="muted">تظهر متابعة التحويلات التفصيلية لمدير النظام ومراقب التقارير.</p>';
  }
 }
@@ -196,7 +211,7 @@ function renderRequests(){
     <div>
      <h3>طلب رقم ${esc(r.request_number||r.id)} • ${esc(r.branch_name)} (${esc(r.branch_code)})</h3>
      <p>الفاتورة: ${esc(r.invoice_number)} • تاريخ الفاتورة: ${esc(r.invoice_date||'—')}</p>
-     <p>تاريخ طلب الاستثناء: ${esc(r.created_at)}</p>
+     <p>تاريخ طلب الاستثناء: ${esc(formatAppDateTime(r.created_at))}</p>
      <p><b>مقدم الطلب:</b> ${esc(r.creator_name||'غير محدد')}</p>
     </div>
     <span class="pill ${r.status}">${statusName(r.status)}</span>
@@ -393,8 +408,8 @@ async function loadReports(){
   const statusLabel=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
   const branchTerm=branch.toLowerCase();
   $('balanceReportRows').innerHTML=(d.balances||[]).filter(x=>!branchTerm||(String(x.code)+' '+String(x.name)).toLowerCase().includes(branchTerm)).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
-  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.request_number||x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.invoice_date||'—')}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="17" class="empty-cell">لا توجد طلبات في الفترة المحددة</td></tr>';
-  $('transferReportRows').innerHTML=(d.transfers||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.from_code)} - ${esc(x.from_name)}</td><td>${esc(x.to_code)} - ${esc(x.to_name)}</td><td>${x.quantity}</td><td>${statusLabel(x.status)}</td><td>${esc(x.reason)}</td><td>${esc(x.requester_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decided_at)}</td></tr>`).join('')||'<tr><td colspan="11">لا توجد تحويلات في الفترة المحددة</td></tr>';
+  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.request_number||x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.invoice_date||'—')}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(formatAppDateTime(x.created_at))}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="17" class="empty-cell">لا توجد طلبات في الفترة المحددة</td></tr>';
+  $('transferReportRows').innerHTML=(d.transfers||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.from_code)} - ${esc(x.from_name)}</td><td>${esc(x.to_code)} - ${esc(x.to_name)}</td><td>${x.quantity}</td><td>${statusLabel(x.status)}</td><td>${esc(x.reason)}</td><td>${esc(x.requester_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(formatAppDateTime(x.decided_at))}</td></tr>`).join('')||'<tr><td colspan="11">لا توجد تحويلات في الفترة المحددة</td></tr>';
  }catch(e){message(e.message,true)}
 }
 
@@ -453,7 +468,7 @@ function renderAudit(){
     <span class="pill">${esc(a.display_name||'النظام')}</span>
    </div>
    <p>${esc(a.entity_type)} • ${esc(a.entity_id)}</p>
-   <p>${esc(a.created_at)} • ${esc(a.details_json)}</p>
+   <p>${esc(formatAppDateTime(a.created_at))} • ${esc(a.details_json)}</p>
   </article>
  `).join('')||'<div class="item">لا توجد حركات مسجلة.</div>';
 }
@@ -538,7 +553,7 @@ async function loadPrayerSchedule(){
   const r=await fetch('https://api.aladhan.com/v1/timings/'+Math.floor(Date.now()/1000)+'?latitude='+prayerCoords.lat+'&longitude='+prayerCoords.lon+'&method=5');
   if(!r.ok)throw new Error('prayer api');const j=await r.json();prayerSchedule=j.data.timings;
   const items=[['الفجر','Fajr'],['الشروق','Sunrise'],['الظهر','Dhuhr'],['العصر','Asr'],['المغرب','Maghrib'],['العشاء','Isha']];
-  const list=document.getElementById('prayerTimes');if(list)list.innerHTML=items.map(([name,key])=>'<div class="prayer-time"><span>'+name+'</span><b dir="ltr">'+prayerSchedule[key].slice(0,5)+'</b></div>').join('');
+  const list=document.getElementById('prayerTimes');if(list)list.innerHTML=items.map(([name,key])=>'<div class="prayer-time"><span>'+name+'</span><b dir="ltr">'+formatPrayerTime(prayerSchedule[key])+'</b></div>').join('');
   setPrayerHeading();updatePrayerCountdown();
  }catch{const box=document.getElementById('prayerLine');if(box)box.textContent='تعذر تحميل مواقيت الصلاة';}
 }
