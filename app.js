@@ -227,12 +227,18 @@ function renderRequests(){
      <button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>
      <button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>
     </div>`:''}
+   ${((r.created_by===state.user.id&&['pending','rejected'].includes(r.status))||(state.user.role==='system_admin'&&r.status==='rejected'))?`<div class="itemactions"><button class="reject" data-request-delete="${esc(r.id)}">حذف الطلب</button></div>`:''}
   </article>
  `).join('')||'<div class="item">لا توجد طلبات مطابقة.</div>';
 
  document.querySelectorAll('[data-decision]').forEach(b=>
   b.onclick=()=>decide(b.dataset.id,b.dataset.decision)
  );
+ document.querySelectorAll('[data-request-delete]').forEach(b=>b.onclick=async()=>{
+  if(!confirm('هل أنت متأكد من حذف طلب الاستثناء؟ لا يمكن التراجع عن الحذف.'))return;
+  try{await api('requests/'+encodeURIComponent(b.dataset.requestDelete),{method:'DELETE'});message('تم حذف الطلب');await refreshAll();}
+  catch(e){message(e.message,true);}
+ });
 }
 
 $('requestSearch').oninput=renderRequests;
@@ -393,10 +399,17 @@ function renderUsers(){
     <h3>${esc(u.display_name)}</h3>
     <span class="pill">${roleName(u.role)}</span>
    </div>
-   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions">${u.username.toLowerCase()==='admin'?'<b>حساب محمي - لا يمكن تعديله</b>':`<button data-user-edit="${esc(u.id)}">تعديل البيانات والصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button>`}</div>
+   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions">${u.username.toLowerCase()==='admin'?'<b>حساب محمي - لا يمكن تعديله</b>':`<button data-user-edit="${esc(u.id)}">تعديل البيانات والصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button><button class="reject" data-user-delete="${esc(u.id)}">حذف المستخدم</button>`}</div>
   </article>
  `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-edit]').forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>String(x.id)===b.dataset.userEdit);if(!u)return;const username=prompt('اسم المستخدم',u.username);if(username===null)return;const displayName=prompt('الاسم الظاهر',u.display_name);if(displayName===null)return;const role=prompt('الدور: branch_user أو report_viewer أو system_admin',u.role);if(role===null)return;const branches=await api('branches');const selected=(await api('user-branches/'+encodeURIComponent(u.id))).branchIds||[];const choices=branches.branches.map(x=>x.id+': '+x.name).join('\\n');const raw=prompt('اكتب أرقام IDs للفروع مفصولة بفواصل. الفروع المتاحة:\\n'+choices,selected.join(','));if(raw===null)return;const current=u.permissions||{};const allowed=prompt('الصلاحيات المتاحة (اكتب أسماء الصلاحيات مفصولة بفواصل):\\ndashboard = لوحة المتابعة\nrequests = عرض طلبات الاستثناء\ncreate_request = إنشاء طلب استثناء\ndecide_requests = اعتماد ورفض طلبات الاستثناء\ntransfers = تحويل الحصص\ncreate_transfer = إنشاء تحويل حصة\ndecide_transfers = اعتماد ورفض تحويلات الحصص\nreports = التقارير\nusers = إدارة المستخدمين\nbranches = إدارة الفروع\naudit = سجل التدقيق\\nلإلغاء صلاحية احذفها من القائمة.',Object.keys(current).filter(k=>current[k]).join(','));if(allowed===null)return;const permissions={...Object.fromEntries(["dashboard","requests","create_request","decide_requests","transfers","create_transfer","decide_transfers","reports","users","branches","audit"].map(k=>[k,false]))};allowed.split(',').map(x=>x.trim()).filter(Boolean).forEach(k=>{if(Object.prototype.hasOwnProperty.call(permissions,k))permissions[k]=true;});try{await api('users/'+encodeURIComponent(u.id),{method:'PATCH',body:JSON.stringify({username,displayName,role,branchIds:raw.split(',').map(x=>Number(x.trim())).filter(Number.isInteger),permissions})});message('تم تحديث المستخدم وصلاحيات فروعه');await refreshAll();}catch(e){message(e.message,true);}});
 document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
+document.querySelectorAll('[data-user-delete]').forEach(b=>b.onclick=async()=>{
+ const target=state.users.find(u=>String(u.id)===b.dataset.userDelete);
+ if(!target)return;
+ if(!confirm('تأكيد حذف المستخدم '+target.display_name+'؟ سيتم منعه من الدخول وإخفاؤه من قائمة المستخدمين مع الاحتفاظ بسجلاته السابقة.'))return;
+ try{await api('users/'+encodeURIComponent(b.dataset.userDelete),{method:'DELETE'});message('تم حذف المستخدم');await refreshAll();}
+ catch(e){message(e.message,true);}
+});
 }
 
 async function loadReports(){
