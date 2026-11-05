@@ -1011,3 +1011,5 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
 .permission-footer{display:flex;justify-content:flex-end;gap:10px;padding-top:14px;position:sticky;bottom:-16px;background:#fff}
 .user-permission-summary{font-size:12px;color:#64748b}
 @media(max-width:640px){.permission-grid{grid-template-columns:1fr}.user-permissions-modal{width:100%;max-height:95dvh}.permission-footer{bottom:-16px}}
+
+.audit-details-cell{max-width:420px;white-space:normal;overflow-wrap:anywhere;direction:ltr;text-align:left;font-family:monospace;font-size:12px}.tablewrap table td{vertical-align:middle}#usersStatusTable td:last-child{white-space:nowrap}#usersStatusTable .pill{white-space:nowrap}
