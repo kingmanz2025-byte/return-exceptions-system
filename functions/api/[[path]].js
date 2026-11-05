@@ -463,11 +463,12 @@ export async function onRequest({request,env}) {
 
  // اعتماد أو رفض التحويل
  if(path.startsWith("transfers/")&&method==="POST"){
-  if(!allowed(user,"decide_transfers"))
-   return fail("اعتماد أو رفض التحويل لمدير النظام فقط",403);
+  const x=await body(request);
+  const transferPermission=x?.decision==="approve"?"approve_transfers":"reject_transfers";
+  if(!allowed(user,transferPermission)&&!allowed(user,"decide_transfers"))
+   return fail("ليس لديك صلاحية تنفيذ قرار التحويل",403);
 
   const id=path.split("/")[1];
-  const x=await body(request);
 
   const t=await env.DB.prepare(
    "SELECT * FROM quota_transfer_requests WHERE id=?"
