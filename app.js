@@ -507,39 +507,53 @@ async function exportReport(tableId,fileName){
 }
 
 function auditActionName(action){
- const names={request_created:'تقديم طلب استثناء',request_approve:'الموافقة على طلب',request_reject:'رفض طلب',request_deleted:'حذف طلب استثناء',user_login:'تسجيل دخول',user_created:'إضافة مستخدم',user_deleted:'حذف مستخدم',user_activated:'تفعيل مستخدم',user_deactivated:'إيقاف مستخدم',user_permissions_updated:'تعديل صلاحيات مستخدم',reason_created:'إضافة سبب استثناء',reason_updated:'تعديل سبب استثناء',reason_deleted:'حذف سبب استثناء',transfer_created:'طلب تحويل حصة',transfer_approve:'الموافقة على تحويل حصة',transfer_reject:'رفض تحويل حصة',transfer_deleted:'حذف طلب تحويل'};
- return names[action]||action||'عملية أخرى';
+ const names={
+  request_created:'تم تقديم طلب استثناء',
+  request_approve:'تمت الموافقة على الطلب',
+  request_reject:'تم رفض الطلب',
+  request_deleted:'تم حذف طلب استثناء',
+  user_login:'تسجيل دخول',
+  user_created:'تم إنشاء مستخدم',
+  user_deleted:'تم حذف مستخدم',
+  user_activated:'تم تفعيل مستخدم',
+  user_deactivated:'تم إيقاف مستخدم',
+  user_permissions_updated:'تم تعديل صلاحيات مستخدم',
+  reason_created:'تمت إضافة سبب استثناء',
+  reason_updated:'تم تعديل سبب استثناء',
+  reason_deleted:'تم حذف سبب استثناء',
+  transfer_created:'تم طلب تحويل حصة',
+  transfer_approve:'تمت الموافقة على تحويل الحصة',
+  transfer_reject:'تم رفض تحويل الحصة',
+  transfer_deleted:'تم حذف طلب تحويل حصة'
+ };
+ return names[action]||'تم تنفيذ إجراء بالنظام';
 }
-function auditTypeName(type){
- return ({exception_request:'طلب استثناء',user:'مستخدم',exception_reason:'سبب استثناء',quota_transfer_request:'تحويل حصة',branch:'فرع',session:'جلسة دخول'})[type]||'سجل بالنظام';
+function auditData(a){
+ try{return JSON.parse(a.details_json||'{}')||{};}catch{return {};}
 }
-function auditDetailsText(a){
- let d={};try{d=JSON.parse(a.details_json||'{}')||{};}catch{return a.details_json||'—';}
- const labels={requestNumber:'رقم الطلب',status:'الحالة',creator:'مقدم الطلب',deletedBy:'حذف بواسطة',username:'اسم المستخدم',reason:'سبب الاستثناء',note:'ملاحظة القرار',period:'الشهر',branchId:'رقم الفرع',quantity:'الكمية',fromBranch:'من فرع',toBranch:'إلى فرع'};
- const vals=[];
- for(const [k,v] of Object.entries(d)){
-  if(v===null||v===undefined||v==='')continue;
-  let value=String(v);
-  if(k==='status')value=({pending:'قيد المراجعة',approved:'تمت الموافقة',rejected:'مرفوض'})[value]||value;
-  if(k==='creator'&&value==='admin')value='مدير النظام';
-  if(k==='deletedBy'&&value==='admin')value='مدير النظام';
-  if(k==='branchId')value='فرع رقم '+value;
-  vals.push((labels[k]||k)+': '+value);
- }
- return vals.join(' • ')||'لا توجد تفاصيل إضافية';
-}
-function auditRecordNumber(a){
- let d={};try{d=JSON.parse(a.details_json||'{}')||{};}catch{}
+function auditRequestLabel(a){
+ const d=auditData(a);
  if(d.requestNumber)return 'طلب استثناء رقم '+d.requestNumber;
- if(a.entity_type==='user')return 'حساب مستخدم';
+ if(a.entity_type==='user')return 'مستخدم';
  if(a.entity_type==='exception_reason')return 'سبب استثناء';
  if(a.entity_type==='quota_transfer_request')return 'تحويل حصة';
  return '—';
 }
-function renderAudit(){
- $('auditRows').innerHTML=state.audit.map(a=>`<tr><td>${esc(formatAppDateTime(a.created_at))}</td><td>${esc(a.display_name||'النظام')}</td><td>${esc(auditActionName(a.action))}</td><td>${esc(auditTypeName(a.entity_type))}</td><td>${esc(auditRecordNumber(a))}</td><td class="audit-details-cell">${esc(auditDetailsText(a))}</td></tr>`).join('')||'<tr><td colspan="6">لا توجد حركات مسجلة.</td></tr>';
+function auditSummary(a){
+ const d=auditData(a), parts=[];
+ if(d.requestNumber)parts.push('رقم الطلب '+d.requestNumber);
+ if(d.status)parts.push('الحالة: '+({pending:'قيد المراجعة',approved:'مقبول',rejected:'مرفوض'}[d.status]||'غير محددة'));
+ if(d.username)parts.push('اسم المستخدم: '+d.username);
+ if(d.reason)parts.push('السبب: '+d.reason);
+ if(d.note)parts.push('ملاحظة: '+d.note);
+ if(d.period)parts.push('الشهر: '+d.period);
+ if(d.quantity!==undefined)parts.push('الكمية: '+d.quantity);
+ if(d.deletedBy)parts.push('حذف بواسطة: '+(d.deletedBy==='admin'?'مدير النظام':d.deletedBy));
+ return parts.join(' — ')||'لا توجد تفاصيل إضافية مسجلة';
 }
-
+function renderAudit(){
+ $('auditRows').innerHTML=state.audit.map(a=>`<tr><td>${esc(formatAppDateTime(a.created_at))}</td><td>${esc(a.display_name||'النظام')}</td><td>${esc(auditActionName(a.action))}</td><td>${esc(auditRequestLabel(a))}</td><td class="audit-details-cell">${esc(auditSummary(a))}</td></tr>`).join('')||'<tr><td colspan="5">لا توجد عمليات مسجلة حتى الآن.</td></tr>';
+}
 $('setupForm').addEventListener('submit',async e=>{
  e.preventDefault();
 
