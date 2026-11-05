@@ -230,10 +230,10 @@ function renderRequests(){
    <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')}</p>
    <p><b>كود الصنف:</b> ${esc(r.item_code||'—')} • <b>اسم الصنف:</b> ${esc(r.item_name||'—')}</p>
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
-   ${r.status==='pending'&&((state.user.permissions?.approve_requests||state.user.permissions?.decide_requests)||(state.user.permissions?.reject_requests||state.user.permissions?.decide_requests))?`
+   ${r.status==='pending'&&(state.user.permissions?.approve_requests||state.user.permissions?.reject_requests)?`
     <div class="itemactions">
-     ${(state.user.permissions?.approve_requests||state.user.permissions?.decide_requests)?`<button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>`:''}
-     ${(state.user.permissions?.reject_requests||state.user.permissions?.decide_requests)?`<button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>`:''}
+     ${state.user.permissions?.approve_requests?`<button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>`:''}
+     ${state.user.permissions?.reject_requests?`<button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>`:''}
     </div>`:''}
    ${((r.created_by===state.user.id&&state.user.permissions?.delete_own_requests&&['pending','rejected','approved'].includes(r.status))||(state.user.permissions?.delete_any_requests&&['rejected','approved'].includes(r.status)))?`<div class="itemactions"><button class="reject" data-request-delete="${esc(r.id)}">حذف الطلب</button></div>`:''}
   </article>
@@ -342,10 +342,10 @@ function renderTransfers(){
    <p><b>مقدم التحويل:</b> ${esc(t.requester_name||'غير محدد')} • <b>تاريخ الطلب:</b> ${esc(t.created_at||'')}</p>
    ${t.decided_by_name?`<p><b>صاحب القرار:</b> ${esc(t.decided_by_name)} • ${esc(t.decided_at||'')}</p>`:''}
    ${t.decision_note?`<p><b>ملاحظة القرار:</b> ${esc(t.decision_note)}</p>`:''}
-   ${t.status==='pending'&&((state.user.permissions?.approve_transfers||state.user.permissions?.decide_transfers)||(state.user.permissions?.reject_transfers||state.user.permissions?.decide_transfers))?`
+   ${t.status==='pending'&&(state.user.permissions?.approve_transfers||state.user.permissions?.reject_transfers)?`
     <div class="itemactions">
-     ${(state.user.permissions?.approve_transfers||state.user.permissions?.decide_transfers)?`<button class="approve" data-transfer="approve" data-id="${esc(t.id)}">اعتماد</button>`:''}
-     ${(state.user.permissions?.reject_transfers||state.user.permissions?.decide_transfers)?`<button class="reject" data-transfer="reject" data-id="${esc(t.id)}">رفض</button>`:''}
+     ${state.user.permissions?.approve_transfers?`<button class="approve" data-transfer="approve" data-id="${esc(t.id)}">اعتماد</button>`:''}
+     ${state.user.permissions?.reject_transfers?`<button class="reject" data-transfer="reject" data-id="${esc(t.id)}">رفض</button>`:''}
     </div>`:''}
   </article>
  `).join('')||'<div class="item">لا توجد تحويلات.</div>';
