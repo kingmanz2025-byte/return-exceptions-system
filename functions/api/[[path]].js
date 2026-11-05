@@ -32,6 +32,7 @@ async function ensureReturnsFields(env){
  returnsFieldsMigration=(async()=>{
   const add=async(table,column,definition)=>{const cols=await env.DB.prepare("PRAGMA table_info("+table+")").all();if(!cols.results.some(c=>c.name===column))await env.DB.prepare("ALTER TABLE "+table+" ADD COLUMN "+column+" "+definition).run();};
   await add("users","permissions_json","TEXT NOT NULL DEFAULT '{}' ");
+  await add("users","deleted_at","TEXT");
   for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"],["invoice_date","TEXT"],["request_number","INTEGER"]])await add("exception_requests",c,d);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS exception_reasons (id TEXT PRIMARY KEY, reason TEXT NOT NULL UNIQUE COLLATE NOCASE, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   const seeded=await env.DB.prepare("SELECT COUNT(*) n FROM exception_reasons").first();
@@ -60,7 +61,7 @@ async function auth(req,env){
  const h=await sha(token);
 
  const s=await env.DB.prepare(
-  "SELECT u.id,u.username,u.display_name,u.role,u.is_active,u.must_change_password,u.permissions_json FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1"
+  "SELECT u.id,u.username,u.display_name,u.role,u.is_active,u.must_change_password,u.permissions_json FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>? AND u.is_active=1 AND u.deleted_at IS NULL"
  ).bind(h,new Date().toISOString()).first();
 
  return s||null;
@@ -512,6 +513,20 @@ export async function onRequest({request,env}) {
  }
 
  // اعتماد أو رفض طلب استثناء
+ // حذف طلب استثناء: مقدم الطلب يستطيع حذف طلبه غير المعتمد، ومدير النظام يستطيع حذف الطلبات المرفوضة فقط
+ if(path.startsWith("requests/")&&method==="DELETE"){
+  const id=decodeURIComponent(path.slice("requests/".length));
+  const target=await env.DB.prepare("SELECT id,created_by,status,request_number,branch_id FROM exception_requests WHERE id=?").bind(id).first();
+  if(!target)return fail("الطلب غير موجود",404);
+  const isOwner=target.created_by===user.id;
+  const canDeleteOwn=isOwner&&["pending","rejected"].includes(target.status);
+  const canDeleteRejected=user.role==="system_admin"&&target.status==="rejected";
+  if(!canDeleteOwn&&!canDeleteRejected)return fail("يمكنك حذف طلبك غير المعتمد أو الطلب المرفوض فقط",403);
+  await audit(env,user,"request_deleted","exception_request",id,{requestNumber:target.request_number,status:target.status});
+  await env.DB.prepare("DELETE FROM exception_requests WHERE id=?").bind(id).run();
+  return json({ok:true});
+ }
+
  if(path==="decisions"&&method==="POST"){
   if(!allowed(user,"decide_requests"))
    return fail("القرار لمدير النظام فقط",403);
@@ -567,7 +582,7 @@ export async function onRequest({request,env}) {
    return fail("صلاحية مدير النظام مطلوبة",403);
 
   await ensureRecovery(env);
-  const rows=await env.DB.prepare("SELECT id,username,display_name,role,is_active,created_at,must_change_password,permissions_json FROM users ORDER BY created_at DESC").all();
+  const rows=await env.DB.prepare("SELECT id,username,display_name,role,is_active,created_at,must_change_password,permissions_json FROM users WHERE deleted_at IS NULL ORDER BY created_at DESC").all();
   const recovery=await env.DB.prepare("SELECT id,username,requested_at FROM password_recovery_requests WHERE status='pending' ORDER BY requested_at DESC").all();
   return json({ok:true,users:rows.results.map(u=>({...u,permissions:parsePermissions(u)})),recoveryRequests:recovery.results});
  }
@@ -632,7 +647,20 @@ export async function onRequest({request,env}) {
  if(path==="admin/branches"&&method==="POST"){if(!allowed(user,"branches"))return fail("مدير النظام فقط",403);const x=await body(request);if(!x.code||!x.name||!Number.isInteger(Number(x.monthlyQuota))||Number(x.monthlyQuota)<0)return fail("بيانات الفرع غير صحيحة");try{const r=await env.DB.prepare("INSERT INTO branches(code,name,monthly_quota,is_active) VALUES(?,?,?,1)").bind(x.code.trim(),x.name.trim(),Number(x.monthlyQuota)).run();await audit(env,user,"branch_created","branch",String(r.meta?.last_row_id||""),{code:x.code,name:x.name});return json({ok:true},201);}catch{return fail("كود الفرع مستخدم أو البيانات غير صحيحة");}}
  if(path.startsWith("admin/branches/")&&method==="PATCH"){if(!allowed(user,"branches"))return fail("غير مصرح",403);const id=Number(path.split("/")[2]),x=await body(request),b=await env.DB.prepare("SELECT * FROM branches WHERE id=?").bind(id).first();if(!b)return fail("الفرع غير موجود",404);if(x.toggleActive){await env.DB.prepare("UPDATE branches SET is_active=? WHERE id=?").bind(b.is_active?0:1,id).run();await audit(env,user,b.is_active?"branch_deactivated":"branch_activated","branch",String(id),{});return json({ok:true});}await env.DB.prepare("UPDATE branches SET code=?,name=?,monthly_quota=? WHERE id=?").bind(x.code.trim(),x.name.trim(),Number(x.monthlyQuota),id).run();await audit(env,user,"branch_updated","branch",String(id),{code:x.code,name:x.name,monthlyQuota:x.monthlyQuota});return json({ok:true});}
  if(path.startsWith("user-branches/")&&method==="GET"){if(!allowed(user,"users"))return fail("غير مصرح",403);const id=path.split("/")[1];const rows=await env.DB.prepare("SELECT branch_id FROM user_branch_access WHERE user_id=?").bind(id).all();return json({ok:true,branchIds:rows.results.map(x=>x.branch_id)});}
- if(path.startsWith("users/")&&method==="PATCH"){if(!allowed(user,"users"))return fail("غير مصرح",403);const id=path.split("/")[1],x=await body(request),target=await env.DB.prepare("SELECT * FROM users WHERE id=?").bind(id).first();if(!target)return fail("المستخدم غير موجود",404);if(String(target.username).toLowerCase()==="admin")return fail("حساب admin محمي ولا يمكن تعديله",403);if(x.toggleActive){if(id===user.id)return fail("لا يمكنك إيقاف حسابك الحالي");await env.DB.prepare("UPDATE users SET is_active=? WHERE id=?").bind(target.is_active?0:1,id).run();if(target.is_active)await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(id).run();await audit(env,user,target.is_active?"user_deactivated":"user_activated","user",id,{});return json({ok:true});}if(x.resetPassword){if(typeof x.temporaryPassword!=="string"||x.temporaryPassword.length<12)return fail("كلمة المرور المؤقتة يجب ألا تقل عن 12 حرفًا");const salt=b64u(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(x.temporaryPassword,salt);await env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?").bind(hash,salt,id).run();await audit(env,user,"admin_password_reset","user",id,{});return json({ok:true});}if(!x.username||!x.displayName||!["branch_user","report_viewer","system_admin"].includes(x.role))return fail("بيانات غير صحيحة");try{await env.DB.prepare("UPDATE users SET username=?,display_name=?,role=?,permissions_json=? WHERE id=?").bind(x.username.trim(),x.displayName,x.role,JSON.stringify(x.permissions||{}),id).run();}catch{return fail("اسم المستخدم مستخدم بالفعل أو غير صالح",409);}await env.DB.prepare("DELETE FROM user_branch_access WHERE user_id=?").bind(id).run();for(const bid of (x.branchIds||[]))await env.DB.prepare("INSERT INTO user_branch_access(user_id,branch_id) VALUES(?,?)").bind(id,Number(bid)).run();await audit(env,user,"user_updated","user",id,{role:x.role});return json({ok:true});}
+ if(path.startsWith("users/")&&method==="DELETE"){
+  if(!allowed(user,"users"))return fail("صلاحية مدير النظام مطلوبة",403);
+  const id=decodeURIComponent(path.slice("users/".length));
+  if(id===user.id)return fail("لا يمكنك حذف حسابك الحالي",403);
+  const target=await env.DB.prepare("SELECT id,username FROM users WHERE id=? AND deleted_at IS NULL").bind(id).first();
+  if(!target)return fail("المستخدم غير موجود",404);
+  if(String(target.username).toLowerCase()==="admin")return fail("حساب admin محمي ولا يمكن حذفه",403);
+  await env.DB.prepare("UPDATE users SET is_active=0,deleted_at=CURRENT_TIMESTAMP WHERE id=?").bind(id).run();
+  await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(id).run();
+  await audit(env,user,"user_deleted","user",id,{username:target.username});
+  return json({ok:true});
+ }
+
+ if(path.startsWith("users/")&&method==="PATCH"){if(!allowed(user,"users"))return fail("غير مصرح",403);const id=path.split("/")[1],x=await body(request),target=await env.DB.prepare("SELECT * FROM users WHERE id=? AND deleted_at IS NULL").bind(id).first();if(!target)return fail("المستخدم غير موجود",404);if(String(target.username).toLowerCase()==="admin")return fail("حساب admin محمي ولا يمكن تعديله",403);if(x.toggleActive){if(id===user.id)return fail("لا يمكنك إيقاف حسابك الحالي");await env.DB.prepare("UPDATE users SET is_active=? WHERE id=?").bind(target.is_active?0:1,id).run();if(target.is_active)await env.DB.prepare("DELETE FROM sessions WHERE user_id=?").bind(id).run();await audit(env,user,target.is_active?"user_deactivated":"user_activated","user",id,{});return json({ok:true});}if(x.resetPassword){if(typeof x.temporaryPassword!=="string"||x.temporaryPassword.length<12)return fail("كلمة المرور المؤقتة يجب ألا تقل عن 12 حرفًا");const salt=b64u(crypto.getRandomValues(new Uint8Array(16))),hash=await passwordHash(x.temporaryPassword,salt);await env.DB.prepare("UPDATE users SET password_hash=?,password_salt=?,must_change_password=1 WHERE id=?").bind(hash,salt,id).run();await audit(env,user,"admin_password_reset","user",id,{});return json({ok:true});}if(!x.username||!x.displayName||!["branch_user","report_viewer","system_admin"].includes(x.role))return fail("بيانات غير صحيحة");try{await env.DB.prepare("UPDATE users SET username=?,display_name=?,role=?,permissions_json=? WHERE id=?").bind(x.username.trim(),x.displayName,x.role,JSON.stringify(x.permissions||{}),id).run();}catch{return fail("اسم المستخدم مستخدم بالفعل أو غير صالح",409);}await env.DB.prepare("DELETE FROM user_branch_access WHERE user_id=?").bind(id).run();for(const bid of (x.branchIds||[]))await env.DB.prepare("INSERT INTO user_branch_access(user_id,branch_id) VALUES(?,?)").bind(id,Number(bid)).run();await audit(env,user,"user_updated","user",id,{role:x.role});return json({ok:true});}
 
  // لوحة المعلومات
  if(path==="dashboard"&&method==="GET"){
