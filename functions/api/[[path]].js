@@ -24,7 +24,7 @@ async function passwordHash(password,salt){
 
 const uid=()=>crypto.randomUUID();
 const DEFAULT_PERMISSIONS={
- system_admin:{dashboard:true,requests:true,create_request:true,decide_requests:true,approve_requests:true,reject_requests:true,delete_own_requests:true,delete_any_requests:true,transfers:true,create_transfer:true,decide_transfers:true,approve_transfers:true,reject_transfers:true,reports:true,users:true,branches:true,audit:true},
+ system_admin:{dashboard:true,requests:true,create_request:true,decide_requests:true,review_requests:true,approve_requests:true,reject_requests:true,delete_own_requests:true,delete_any_requests:true,transfers:true,create_transfer:true,decide_transfers:true,approve_transfers:true,reject_transfers:true,reports:true,users:true,branches:true,audit:true},
  branch_user:{create_request:true,delete_own_requests:true},
  report_viewer:{reports:true}
 };
@@ -41,7 +41,7 @@ async function ensureReturnsFields(env){
   await add("sessions","last_seen_at","TEXT");
   await add("users","deleted_at","TEXT");
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS deleted_exception_requests (id TEXT PRIMARY KEY, request_number INTEGER, branch_id INTEGER, request_snapshot TEXT NOT NULL, original_status TEXT NOT NULL, created_by TEXT, creator_name TEXT, decided_by TEXT, decision_maker TEXT, deleted_by TEXT, deleter_name TEXT, deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
-  for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"],["invoice_date","TEXT"],["request_number","INTEGER"]])await add("exception_requests",c,d);
+  for(const [c,d] of [["reviewed_by","TEXT"],["reviewed_at","TEXT"],["review_note","TEXT"],["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"],["invoice_date","TEXT"],["request_number","INTEGER"]])await add("exception_requests",c,d);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS exception_reasons (id TEXT PRIMARY KEY, reason TEXT NOT NULL UNIQUE COLLATE NOCASE, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   const seeded=await env.DB.prepare("SELECT COUNT(*) n FROM exception_reasons").first();
   if(!Number(seeded?.n||0))for(const reason of ["خارج فترة المرتجع","منتج مستخدم","شرط التغليف","خطأ تشغيلي","سبب آخر"])await env.DB.prepare("INSERT OR IGNORE INTO exception_reasons(id,reason) VALUES(?,?)").bind(uid(),reason).run();
@@ -334,7 +334,7 @@ export async function onRequest({request,env}) {
  if(path==="requests"&&method==="GET"){
   if(!allowed(user,"requests"))return json({ok:true,requests:[]});
   let sql=
-   "SELECT e.*,b.code branch_code,b.name branch_name,u.display_name creator_name FROM exception_requests e JOIN branches b ON b.id=e.branch_id JOIN users u ON u.id=e.created_by";
+   "SELECT e.*,b.code branch_code,b.name branch_name,u.display_name creator_name,reviewer.display_name reviewer_name FROM exception_requests e JOIN branches b ON b.id=e.branch_id JOIN users u ON u.id=e.created_by LEFT JOIN users reviewer ON reviewer.id=e.reviewed_by";
 
   let rows=user.role==="system_admin"||user.role==="report_viewer"
    ?await env.DB.prepare(
@@ -517,6 +517,19 @@ export async function onRequest({request,env}) {
   return json({ok:true});
  }
 
+ // المرحلة الأولى: مراجعة الطلب قبل الاعتماد النهائي
+ if(path==="reviews"&&method==="POST"){
+  if(!allowed(user,"review_requests"))return fail("ليس لديك صلاحية مراجعة الطلبات",403);
+  const x=await body(request);
+  const r=await env.DB.prepare("SELECT * FROM exception_requests WHERE id=?").bind(x?.id).first();
+  if(!r||r.status!=="pending")return fail("الطلب غير موجود أو لم يعد معلقًا",404);
+  if(r.reviewed_at)return fail("تمت مراجعة هذا الطلب بالفعل",409);
+  const result=await env.DB.prepare("UPDATE exception_requests SET reviewed_by=?,reviewed_at=CURRENT_TIMESTAMP,review_note=? WHERE id=? AND status='pending' AND reviewed_at IS NULL").bind(user.id,String(x?.note||"").trim()||null,r.id).run();
+  if(!result.meta?.changes)return fail("تعذر تسجيل المراجعة؛ ربما سبق التعامل مع الطلب",409);
+  await audit(env,user,"request_reviewed","exception_request",r.id,{note:String(x?.note||"").trim()});
+  return json({ok:true});
+ }
+
  // اعتماد أو رفض طلب استثناء
  // حذف طلب استثناء: مقدم الطلب يستطيع حذف طلبه غير المعتمد، ومدير النظام يستطيع حذف الطلبات المرفوضة فقط
  if(path.startsWith("requests/")&&method==="DELETE"){
@@ -554,6 +567,8 @@ export async function onRequest({request,env}) {
 
   if(!["approve","reject"].includes(x.decision))
    return fail("قرار غير صحيح");
+  if(!r.reviewed_at||!r.reviewed_by)return fail("يجب مراجعة الطلب أولاً قبل القرار النهائي",409);
+  if(r.reviewed_by===user.id)return fail("لا يمكن للمراجع اتخاذ القرار النهائي لنفس الطلب؛ يجب أن يراجعه مسؤول آخر",403);
 
   if(x.decision==="approve"){
    await ensureBalance(env,r.branch_id,r.period);
