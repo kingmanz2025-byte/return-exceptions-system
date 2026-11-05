@@ -980,3 +980,20 @@ button{transition:transform .15s ease,filter .15s ease}button:hover{filter:brigh
   .header-actions { grid-template-columns: minmax(0, 1fr); }
   .health-line { grid-template-columns: 1fr; }
 }
+
+
+/* Professional report tables */
+#reports .report-panel{padding:18px 18px 20px;border:1px solid #dce5ef;border-top:3px solid var(--gold);box-shadow:0 8px 24px #123b7010}
+#reports .report-panel .panelhead{padding-bottom:12px;border-bottom:1px solid #e7edf4}
+#reports .report-panel .panelhead h2{font-size:17px;font-weight:800;color:#123b70}
+#reports .report-panel .panelhead button{background:#123b70;color:#fff;border:1px solid #d7a642;border-radius:9px;padding:9px 16px}
+#reports .tablewrap{border:1px solid #dce5ef;border-radius:10px;overflow:auto;background:#fff}
+#reports table{width:100%;min-width:1200px;border-collapse:separate;border-spacing:0;white-space:nowrap}
+#reports table thead th{position:sticky;top:0;z-index:1;background:#123b70;color:#fff;font-size:12px;font-weight:800;padding:13px 12px;border-bottom:3px solid #d7a642;text-align:center}
+#reports table tbody td{padding:11px 12px;color:#24364d;font-size:12px;text-align:center;border-bottom:1px solid #e7edf4}
+#reports table tbody tr:nth-child(even){background:#f4f7fb}
+#reports table tbody tr:hover{background:#fff5df}
+#reports table tbody tr:last-child td{border-bottom:0}
+#reports table .empty-cell{padding:24px;text-align:center;color:#718096;font-weight:700}
+#reports .report-panel .tablewrap::-webkit-scrollbar{height:10px}
+#reports .report-panel .tablewrap::-webkit-scrollbar-thumb{background:#b9c7d8;border-radius:10px}
