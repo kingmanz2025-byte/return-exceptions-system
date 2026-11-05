@@ -32,7 +32,11 @@ async function ensureReturnsFields(env){
  returnsFieldsMigration=(async()=>{
   const add=async(table,column,definition)=>{const cols=await env.DB.prepare("PRAGMA table_info("+table+")").all();if(!cols.results.some(c=>c.name===column))await env.DB.prepare("ALTER TABLE "+table+" ADD COLUMN "+column+" "+definition).run();};
   await add("users","permissions_json","TEXT NOT NULL DEFAULT '{}' ");
-  for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"]])await add("exception_requests",c,d);
+  for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"],["invoice_date","TEXT"],["request_number","INTEGER"]])await add("exception_requests",c,d);
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS exception_reasons (id TEXT PRIMARY KEY, reason TEXT NOT NULL UNIQUE COLLATE NOCASE, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
+  const seeded=await env.DB.prepare("SELECT COUNT(*) n FROM exception_reasons").first();
+  if(!Number(seeded?.n||0))for(const reason of ["خارج فترة المرتجع","منتج مستخدم","شرط التغليف","خطأ تشغيلي","سبب آخر"])await env.DB.prepare("INSERT OR IGNORE INTO exception_reasons(id,reason) VALUES(?,?)").bind(uid(),reason).run();
+  await env.DB.prepare("UPDATE exception_requests SET request_number=(SELECT COUNT(*) FROM exception_requests x WHERE x.created_at<exception_requests.created_at OR (x.created_at=exception_requests.created_at AND x.id<=exception_requests.id)) WHERE request_number IS NULL").run();
  })();
  return returnsFieldsMigration;
 }
@@ -315,6 +319,12 @@ export async function onRequest({request,env}) {
   return json({ok:true,branches:rows.results});
  }
 
+ // أسباب الاستثناء
+ if(path==="reasons"&&method==="GET"){const rows=await env.DB.prepare("SELECT id,reason FROM exception_reasons WHERE is_active=1 ORDER BY reason").all();return json({ok:true,reasons:rows.results});}
+ if(path==="reasons"&&method==="POST"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);const x=await body(request),reason=String(x?.reason||"").trim();if(!reason||reason.length>120)return fail("اكتب سببًا صحيحًا");try{const id=uid();await env.DB.prepare("INSERT INTO exception_reasons(id,reason) VALUES(?,?)").bind(id,reason).run();await audit(env,user,"reason_created","exception_reason",id,{reason});return json({ok:true,id,reason},201);}catch{return fail("السبب موجود بالفعل");}}
+ const reasonMatch=path.match(/^reasons\/([^/]+)$/);
+ if(reasonMatch&&method==="PATCH"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);const x=await body(request),reason=String(x?.reason||"").trim();if(!reason||reason.length>120)return fail("اكتب سببًا صحيحًا");try{await env.DB.prepare("UPDATE exception_reasons SET reason=? WHERE id=? AND is_active=1").bind(reason,reasonMatch[1]).run();return json({ok:true});}catch{return fail("السبب موجود بالفعل");}}
+ if(reasonMatch&&method==="DELETE"){if(user.role!=="system_admin")return fail("مدير النظام فقط",403);await env.DB.prepare("UPDATE exception_reasons SET is_active=0 WHERE id=?").bind(reasonMatch[1]).run();return json({ok:true});}
  // عرض الطلبات
  if(path==="requests"&&method==="GET"){
   if(!allowed(user,"requests"))return json({ok:true,requests:[]});
@@ -345,10 +355,10 @@ export async function onRequest({request,env}) {
 
   if(
    !x.invoiceNumber||
+   !x.invoiceDate||!/^\d{4}-\d{2}-\d{2}$/.test(String(x.invoiceDate))||
    !x.reason||
    !x.details||
    !/^0[0-9]{10}$/.test(String(x.customerPhone||""))||
-   !/^[0-9]{14}$/.test(String(x.nationalId||""))||
    !x.itemCode||!x.itemName||
    (x.reason==="سبب آخر"&&!String(x.otherReason||"").trim())||
    !Number.isFinite(Number(x.amount))||
@@ -363,28 +373,12 @@ export async function onRequest({request,env}) {
    "SELECT quota+transferred_in-transferred_out-used available FROM monthly_branch_balances WHERE branch_id=? AND period=?"
   ).bind(branchId,p).first();
 
+  const validReason=await env.DB.prepare("SELECT 1 FROM exception_reasons WHERE reason=? AND is_active=1").bind(x.reason).first();
+  if(!validReason)return fail("سبب الاستثناء غير متاح");
   const id="REQ-"+uid();
-
-  await env.DB.prepare(
-   "INSERT INTO exception_requests(id,branch_id,created_by,invoice_number,customer_name,customer_phone,national_id,item_code,item_name,other_reason,amount,reason,details,attachment_key,status,period,is_over_quota) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,?)"
-  ).bind(
-   id,
-   branchId,
-   user.id,
-   x.invoiceNumber.trim(),
-   x.customerName||null,
-   x.customerPhone,
-   x.nationalId,
-   x.itemCode,
-   x.itemName,
-   x.reason==="سبب آخر"?x.otherReason.trim():null,
-   Number(x.amount),
-   x.reason,
-   x.details,
-   x.attachmentKey||null,
-   p,
-   bal.available<=0?1:0
-  ).run();
+  const seq=await env.DB.prepare("SELECT COALESCE(MAX(request_number),0)+1 n FROM exception_requests").first();
+  const requestNumber=Number(seq?.n||1);
+  await env.DB.prepare("INSERT INTO exception_requests(id,branch_id,created_by,invoice_number,invoice_date,request_number,customer_name,customer_phone,national_id,item_code,item_name,other_reason,amount,reason,details,attachment_key,status,period,is_over_quota) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending',?,?)").bind(id,branchId,user.id,x.invoiceNumber.trim(),x.invoiceDate,requestNumber,x.customerName||null,x.customerPhone,"",x.itemCode,x.itemName,x.reason==="سبب آخر"?x.otherReason.trim():null,Number(x.amount),x.reason,x.details,x.attachmentKey||null,p,bal.available<=0?1:0).run();
 
   await audit(env,user,"request_created","exception_request",id,{
    branchId,
@@ -669,7 +663,7 @@ export async function onRequest({request,env}) {
   const from=url.searchParams.get("from")||"",to=url.searchParams.get("to")||"",branch=url.searchParams.get("branch")||"";
   if((from&&!/^\d{4}-\d{2}-\d{2}$/.test(from))||(to&&!/^\d{4}-\d{2}-\d{2}$/.test(to))||(from&&to&&from>to))return fail("نطاق التاريخ غير صحيح");
   const requests=await env.DB.prepare(
-   "SELECT e.id,e.period,e.invoice_number,e.customer_name,e.customer_phone,e.national_id,e.item_code,e.item_name,e.other_reason,e.amount,e.reason,e.details,e.decision_note,e.created_at,b.code branch_code,b.name branch_name,cu.display_name creator_name,du.display_name decision_maker FROM exception_requests e JOIN branches b ON b.id=e.branch_id LEFT JOIN users cu ON cu.id=e.created_by LEFT JOIN users du ON du.id=e.decided_by WHERE (?='' OR date(e.created_at)>=date(?)) AND (?='' OR date(e.created_at)<=date(?)) AND (?='' OR b.code LIKE '%'||?||'%' OR b.name LIKE '%'||?||'%') ORDER BY b.id,e.created_at DESC"
+   "SELECT e.id,e.request_number,e.period,e.invoice_number,e.invoice_date,e.customer_name,e.customer_phone,e.item_code,e.item_name,e.other_reason,e.amount,e.reason,e.details,e.decision_note,e.created_at,b.code branch_code,b.name branch_name,cu.display_name creator_name,du.display_name decision_maker FROM exception_requests e JOIN branches b ON b.id=e.branch_id LEFT JOIN users cu ON cu.id=e.created_by LEFT JOIN users du ON du.id=e.decided_by WHERE (?='' OR date(e.created_at)>=date(?)) AND (?='' OR date(e.created_at)<=date(?)) AND (?='' OR b.code LIKE '%'||?||'%' OR b.name LIKE '%'||?||'%') ORDER BY b.id,e.created_at DESC"
   ).bind(from,from,to,to,branch,branch,branch).all();
   const transfers=await env.DB.prepare(
    "SELECT t.id,t.period,t.quantity,t.reason,t.status,t.created_at,t.decided_at,t.decision_note,f.code from_code,f.name from_name,d.code to_code,d.name to_name,ru.display_name requester_name,du.display_name decision_maker FROM quota_transfer_requests t JOIN branches f ON f.id=t.from_branch_id JOIN branches d ON d.id=t.to_branch_id LEFT JOIN users ru ON ru.id=t.requested_by LEFT JOIN users du ON du.id=t.decided_by WHERE (?='' OR date(t.created_at)>=date(?)) AND (?='' OR date(t.created_at)<=date(?)) AND (?='' OR f.code LIKE '%'||?||'%' OR f.name LIKE '%'||?||'%' OR d.code LIKE '%'||?||'%' OR d.name LIKE '%'||?||'%') ORDER BY f.id,d.id,t.created_at DESC"
