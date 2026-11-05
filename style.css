@@ -308,12 +308,21 @@ tbody tr:hover {
 
 .filters {
   display: flex;
+  align-items: center;
   gap: 9px;
   margin-bottom: 14px;
+  width: 100%;
 }
 
 .filters input {
-  flex: 1;
+  flex: 1 1 0;
+  width: auto;
+  min-width: 220px;
+}
+
+.filters select {
+  flex: 0 0 180px;
+  width: 180px;
 }
 
 input,
