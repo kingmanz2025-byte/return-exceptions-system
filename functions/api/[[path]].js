@@ -33,6 +33,7 @@ async function ensureReturnsFields(env){
   const add=async(table,column,definition)=>{const cols=await env.DB.prepare("PRAGMA table_info("+table+")").all();if(!cols.results.some(c=>c.name===column))await env.DB.prepare("ALTER TABLE "+table+" ADD COLUMN "+column+" "+definition).run();};
   await add("users","permissions_json","TEXT NOT NULL DEFAULT '{}' ");
   await add("users","deleted_at","TEXT");
+  await env.DB.prepare("CREATE TABLE IF NOT EXISTS deleted_exception_requests (id TEXT PRIMARY KEY, request_number INTEGER, branch_id INTEGER, request_snapshot TEXT NOT NULL, original_status TEXT NOT NULL, created_by TEXT, creator_name TEXT, decided_by TEXT, decision_maker TEXT, deleted_by TEXT, deleter_name TEXT, deleted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   for(const [c,d] of [["customer_phone","TEXT"],["national_id","TEXT"],["item_code","TEXT"],["item_name","TEXT"],["other_reason","TEXT"],["invoice_date","TEXT"],["request_number","INTEGER"]])await add("exception_requests",c,d);
   await env.DB.prepare("CREATE TABLE IF NOT EXISTS exception_reasons (id TEXT PRIMARY KEY, reason TEXT NOT NULL UNIQUE COLLATE NOCASE, is_active INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)").run();
   const seeded=await env.DB.prepare("SELECT COUNT(*) n FROM exception_reasons").first();
@@ -516,13 +517,18 @@ export async function onRequest({request,env}) {
  // حذف طلب استثناء: مقدم الطلب يستطيع حذف طلبه غير المعتمد، ومدير النظام يستطيع حذف الطلبات المرفوضة فقط
  if(path.startsWith("requests/")&&method==="DELETE"){
   const id=decodeURIComponent(path.slice("requests/".length));
-  const target=await env.DB.prepare("SELECT id,created_by,status,request_number,branch_id FROM exception_requests WHERE id=?").bind(id).first();
+  const target=await env.DB.prepare("SELECT e.*,b.code branch_code,b.name branch_name,cu.display_name creator_name,du.display_name decision_maker FROM exception_requests e LEFT JOIN branches b ON b.id=e.branch_id LEFT JOIN users cu ON cu.id=e.created_by LEFT JOIN users du ON du.id=e.decided_by WHERE e.id=?").bind(id).first();
   if(!target)return fail("الطلب غير موجود",404);
   const isOwner=target.created_by===user.id;
-  const canDeleteOwn=isOwner&&["pending","rejected"].includes(target.status);
-  const canDeleteRejected=user.role==="system_admin"&&target.status==="rejected";
-  if(!canDeleteOwn&&!canDeleteRejected)return fail("يمكنك حذف طلبك غير المعتمد أو الطلب المرفوض فقط",403);
-  await audit(env,user,"request_deleted","exception_request",id,{requestNumber:target.request_number,status:target.status});
+  const canDeleteOwn=isOwner&&["pending","rejected","approved"].includes(target.status);
+  const canDeleteAdmin=user.role==="system_admin"&&["rejected","approved"].includes(target.status);
+  if(!canDeleteOwn&&!canDeleteAdmin)return fail("لا يمكن حذف هذا الطلب حسب حالته وصلاحياتك",403);
+  const snapshot={...target};
+  await env.DB.prepare("INSERT OR REPLACE INTO deleted_exception_requests(id,request_number,branch_id,request_snapshot,original_status,created_by,creator_name,decided_by,decision_maker,deleted_by,deleter_name,deleted_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,CURRENT_TIMESTAMP)").bind(target.id,target.request_number||null,target.branch_id,JSON.stringify(snapshot),target.status,target.created_by||null,target.creator_name||null,target.decided_by||null,target.decision_maker||null,user.id,user.display_name).run();
+  if(target.status==="approved"){
+   await env.DB.prepare("UPDATE monthly_branch_balances SET used=CASE WHEN used>0 THEN used-1 ELSE 0 END WHERE branch_id=? AND period=?").bind(target.branch_id,target.period).run();
+  }
+  await audit(env,user,"request_deleted","exception_request",id,{requestNumber:target.request_number,status:target.status,creator:target.creator_name,deletedBy:user.display_name});
   await env.DB.prepare("DELETE FROM exception_requests WHERE id=?").bind(id).run();
   return json({ok:true});
  }
@@ -699,7 +705,8 @@ export async function onRequest({request,env}) {
   const balances=await env.DB.prepare(
    "SELECT b.code,b.name,COALESCE(m.quota,b.monthly_quota) quota,COALESCE(m.transferred_in,0) transferred_in,COALESCE(m.transferred_out,0) transferred_out,COALESCE(m.used,0) used,COALESCE(m.quota,b.monthly_quota)+COALESCE(m.transferred_in,0)-COALESCE(m.transferred_out,0)-COALESCE(m.used,0) available FROM branches b LEFT JOIN monthly_branch_balances m ON m.branch_id=b.id AND m.period=? WHERE b.is_active=1 ORDER BY b.id"
   ).bind(p).all();
-  return json({ok:true,period:p,requests:requests.results,transfers:transfers.results,balances:balances.results});
+  const deleted=await env.DB.prepare("SELECT d.id,d.request_number,d.request_snapshot,d.original_status,d.creator_name,d.decision_maker,d.deleter_name,d.deleted_at,b.code branch_code,b.name branch_name FROM deleted_exception_requests d LEFT JOIN branches b ON b.id=d.branch_id WHERE (?='' OR date(d.deleted_at)>=date(?)) AND (?='' OR date(d.deleted_at)<=date(?)) AND (?='' OR b.code LIKE '%'||?||'%' OR b.name LIKE '%'||?||'%') ORDER BY d.deleted_at DESC").bind(from,from,to,to,branch,branch,branch).all();
+  return json({ok:true,period:p,requests:requests.results,transfers:transfers.results,balances:balances.results,deletedRequests:deleted.results.map(d=>({...d,snapshot:(()=>{try{return JSON.parse(d.request_snapshot)}catch{return {}}})()}))});
  }
 
  // سجل المراجعة
