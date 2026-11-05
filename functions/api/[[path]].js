@@ -568,7 +568,7 @@ export async function onRequest({request,env}) {
   if(!["approve","reject"].includes(x.decision))
    return fail("قرار غير صحيح");
   if(!r.reviewed_at||!r.reviewed_by)return fail("يجب مراجعة الطلب أولاً قبل القرار النهائي",409);
-  if(r.reviewed_by===user.id)return fail("لا يمكن للمراجع اتخاذ القرار النهائي لنفس الطلب؛ يجب أن يراجعه مسؤول آخر",403);
+  if(r.reviewed_by===user.id&&user.role!=="system_admin")return fail("لا يمكن للمراجع اتخاذ القرار النهائي لنفس الطلب؛ يجب أن يراجعه مسؤول آخر",403);
 
   if(x.decision==="approve"){
    await ensureBalance(env,r.branch_id,r.period);
