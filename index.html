@@ -245,20 +245,17 @@
  </div>
 
  <div class="panel">
-  <h2>المستخدمون المسجلون</h2>
-  <div id="userList" class="cards"></div><h2>طلبات استعادة كلمة المرور</h2><div id="recoveryRequestList" class="cards"></div>
+  <div class="panelhead"><h2>المستخدمون وحالة الاتصال</h2><span class="caption">متصل الآن إذا كان آخر نشاط خلال دقيقتين</span></div>
+  <div class="tablewrap"><table id="usersStatusTable"><thead><tr><th>المستخدم</th><th>اسم الدخول</th><th>الدور</th><th>الحالة</th><th>آخر تسجيل دخول</th><th>آخر نشاط</th><th>الصلاحيات والإجراءات</th></tr></thead><tbody id="userList"></tbody></table></div>
+  <h2>طلبات استعادة كلمة المرور</h2><div id="recoveryRequestList" class="cards"></div>
  </div>
 </section>
 
 <section id="settings" class="page"><div class="pagehead"><div><h1>إعدادات النظام</h1><p>إدارة الفروع والحصص وأسباب الاستثناء</p></div></div><div class="panel"><h2>إدارة أسباب الاستثناء</h2><form id="reasonForm" class="formgrid"><label class="full">سبب جديد<input id="newReason" maxlength="120" required></label><button class="primary" type="submit">إضافة السبب</button></form><div id="reasonSettingsList" class="cards"></div></div><div class="panel"><h2>إضافة فرع</h2><form id="branchForm" class="formgrid"><label>كود الفرع<input id="branchCode" required></label><label>اسم الفرع<input id="branchName" required></label><label>الحصة الأساسية<input id="branchQuota" type="number" min="0" step="1" value="3" required></label><button class="primary" type="submit">إضافة الفرع</button></form></div><div class="panel"><h2>الفروع المسجلة</h2><div id="adminBranchList" class="cards"></div></div></section>
 <section id="audit" class="page">
- <div class="pagehead">
-  <div>
-   <h1>سجل التدقيق</h1>
-   <p>متابعة الحركات والقرارات المسجلة بالنظام</p>
-  </div>
- </div>
- <div id="auditList" class="cards"></div>
+ <div class="pagehead"><div><h1>سجل التدقيق</h1><p>متابعة الحركات والقرارات المسجلة بالنظام</p></div></div>
+ <div class="panel"><div class="panelhead"><h2>سجل العمليات</h2><button class="ghost" data-export="auditReportTable" data-filename="سجل-التدقيق">تنزيل Excel</button></div>
+ <div class="tablewrap"><table id="auditReportTable"><thead><tr><th>التاريخ والوقت</th><th>المستخدم</th><th>العملية</th><th>نوع السجل</th><th>رقم السجل</th><th>التفاصيل</th></tr></thead><tbody id="auditRows"></tbody></table></div></div>
 </section>
 
 </main>
