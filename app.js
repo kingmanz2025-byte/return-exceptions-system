@@ -232,7 +232,7 @@ function renderRequests(){
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
    ${r.status==='pending'&&!r.reviewed_at&&state.user.permissions?.review_requests?'<div class="itemactions"><button class="approve" data-review-request="'+esc(r.id)+'">مراجعة الطلب وإحالته للاعتماد</button></div>':''}
    ${r.reviewed_at?'<p><b>تمت المراجعة بواسطة:</b> '+esc(r.reviewer_name||'—')+' • '+esc(formatAppDateTime(r.reviewed_at))+'</p>':''}
-   ${r.status==='pending'&&r.reviewed_at&&r.reviewed_by!==state.user.id&&(state.user.permissions?.approve_requests||state.user.permissions?.reject_requests)?`
+   ${r.status==='pending'&&r.reviewed_at&&(r.reviewed_by!==state.user.id||state.user.role==='system_admin')&&(state.user.permissions?.approve_requests||state.user.permissions?.reject_requests)?`
     <div class="itemactions">
      ${state.user.permissions?.approve_requests?`<button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>`:''}
      ${state.user.permissions?.reject_requests?`<button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>`:''}
