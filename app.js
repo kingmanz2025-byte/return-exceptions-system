@@ -222,12 +222,12 @@ function renderRequests(){
    <p><b>تليفون العميل:</b> ${esc(r.customer_phone||'—')}</p>
    <p><b>كود الصنف:</b> ${esc(r.item_code||'—')} • <b>اسم الصنف:</b> ${esc(r.item_name||'—')}</p>
    ${r.decision_note?`<p>ملاحظة القرار: ${esc(r.decision_note)}</p>`:''}
-   ${r.status==='pending'&&state.user.role==='system_admin'?`
+   ${r.status==='pending'&&(state.user.permissions?.approve_requests||state.user.permissions?.decide_requests||state.user.role==='system_admin')?`
     <div class="itemactions">
      <button class="approve" data-decision="approve" data-id="${esc(r.id)}">اعتماد</button>
-     <button class="reject" data-decision="reject" data-id="${esc(r.id)}">رفض</button>
+     <button class="reject" data-decision="reject" data-id="${esc(r.id)}" ${(state.user.permissions?.reject_requests||state.user.permissions?.decide_requests||state.user.role==='system_admin')?'':'hidden'}>رفض</button>
     </div>`:''}
-   ${((r.created_by===state.user.id&&['pending','rejected','approved'].includes(r.status))||(state.user.role==='system_admin'&&['rejected','approved'].includes(r.status)))?`<div class="itemactions"><button class="reject" data-request-delete="${esc(r.id)}">حذف الطلب</button></div>`:''}
+   ${((r.created_by===state.user.id&&state.user.permissions?.delete_own_requests&&['pending','rejected','approved'].includes(r.status))||(state.user.permissions?.delete_any_requests&&['rejected','approved'].includes(r.status)))?`<div class="itemactions"><button class="reject" data-request-delete="${esc(r.id)}">حذف الطلب</button></div>`:''}
   </article>
  `).join('')||'<div class="item">لا توجد طلبات مطابقة.</div>';
 
@@ -392,25 +392,50 @@ function renderRecoveryRequests(){
  document.querySelectorAll('[data-recovery]').forEach(b=>b.onclick=async()=>{const p=prompt('كلمة مرور مؤقتة (12 حرفًا على الأقل)');if(!p)return;try{await api('password-recovery/'+b.dataset.recovery,{method:'POST',body:JSON.stringify({decision:'approve',temporaryPassword:p})});message('تمت الموافقة وتعيين كلمة مرور مؤقتة');await refreshAll();}catch(e){message(e.message,true);}});
 }
 
+const PERMISSION_GROUPS=[
+ {title:"لوحة النظام",items:[["dashboard","عرض لوحة المتابعة"],["requests","عرض طلبات الاستثناء"],["create_request","إنشاء طلب استثناء"],["reports","عرض التقارير"],["audit","عرض سجل التدقيق"]]},
+ {title:"قرارات طلبات الاستثناء",items:[["approve_requests","اعتماد الطلبات"],["reject_requests","رفض الطلبات"],["delete_own_requests","حذف الطلبات التي أنشأها بنفسه"],["delete_any_requests","حذف طلبات الآخرين المعتمدة أو المرفوضة"]]},
+ {title:"تحويل الحصص",items:[["transfers","عرض تحويلات الحصص"],["create_transfer","إنشاء طلب تحويل"],["approve_transfers","اعتماد تحويلات الحصص"],["reject_transfers","رفض تحويلات الحصص"]]},
+ {title:"إدارة النظام",items:[["users","إدارة المستخدمين والصلاحيات"],["branches","إدارة الفروع والحصص"]]}
+];
+const ALL_PERMISSION_KEYS=PERMISSION_GROUPS.flatMap(g=>g.items.map(x=>x[0]));
 function renderUsers(){
- $('userList').innerHTML=state.users.map(u=>`
-  <article class="item">
-   <div class="itemtop">
-    <h3>${esc(u.display_name)}</h3>
-    <span class="pill">${roleName(u.role)}</span>
-   </div>
-   <p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p><div class="itemactions">${(u.username.toLowerCase()==='admin'||u.id===state.user.id)?'<b>حساب محمي - لا يمكن تعديله أو حذفه</b>':`<button data-user-edit="${esc(u.id)}">تعديل البيانات والصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور مؤقتة</button><button class="reject" data-user-delete="${esc(u.id)}">حذف المستخدم</button>`}</div>
-  </article>
- `).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';document.querySelectorAll('[data-user-edit]').forEach(b=>b.onclick=async()=>{const u=state.users.find(x=>String(x.id)===b.dataset.userEdit);if(!u)return;const username=prompt('اسم المستخدم',u.username);if(username===null)return;const displayName=prompt('الاسم الظاهر',u.display_name);if(displayName===null)return;const role=prompt('الدور: branch_user أو report_viewer أو system_admin',u.role);if(role===null)return;const branches=await api('branches');const selected=(await api('user-branches/'+encodeURIComponent(u.id))).branchIds||[];const choices=branches.branches.map(x=>x.id+': '+x.name).join('\\n');const raw=prompt('اكتب أرقام IDs للفروع مفصولة بفواصل. الفروع المتاحة:\\n'+choices,selected.join(','));if(raw===null)return;const current=u.permissions||{};const allowed=prompt('الصلاحيات المتاحة (اكتب أسماء الصلاحيات مفصولة بفواصل):\\ndashboard = لوحة المتابعة\nrequests = عرض طلبات الاستثناء\ncreate_request = إنشاء طلب استثناء\ndecide_requests = اعتماد ورفض طلبات الاستثناء\ntransfers = تحويل الحصص\ncreate_transfer = إنشاء تحويل حصة\ndecide_transfers = اعتماد ورفض تحويلات الحصص\nreports = التقارير\nusers = إدارة المستخدمين\nbranches = إدارة الفروع\naudit = سجل التدقيق\\nلإلغاء صلاحية احذفها من القائمة.',Object.keys(current).filter(k=>current[k]).join(','));if(allowed===null)return;const permissions={...Object.fromEntries(["dashboard","requests","create_request","decide_requests","transfers","create_transfer","decide_transfers","reports","users","branches","audit"].map(k=>[k,false]))};allowed.split(',').map(x=>x.trim()).filter(Boolean).forEach(k=>{if(Object.prototype.hasOwnProperty.call(permissions,k))permissions[k]=true;});try{await api('users/'+encodeURIComponent(u.id),{method:'PATCH',body:JSON.stringify({username,displayName,role,branchIds:raw.split(',').map(x=>Number(x.trim())).filter(Number.isInteger),permissions})});message('تم تحديث المستخدم وصلاحيات فروعه');await refreshAll();}catch(e){message(e.message,true);}});
-document.querySelectorAll('[data-user-toggle]').forEach(b=>b.onclick=async()=>{try{await api('users/'+b.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});await refreshAll();}catch(e){message(e.message,true);}});document.querySelectorAll('[data-user-reset]').forEach(b=>b.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+b.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة وسيُطلب من المستخدم تغييرها عند الدخول.');}catch(e){message(e.message,true);}});
-document.querySelectorAll('[data-user-delete]').forEach(b=>b.onclick=async()=>{
- const target=state.users.find(u=>String(u.id)===b.dataset.userDelete);
- if(!target)return;
- if(!confirm('تأكيد حذف المستخدم '+target.display_name+'؟ سيتم منعه من الدخول وإخفاؤه من قائمة المستخدمين مع الاحتفاظ بسجلاته السابقة.'))return;
- try{await api('users/'+encodeURIComponent(b.dataset.userDelete),{method:'DELETE'});message('تم حذف المستخدم');await refreshAll();}
- catch(e){message(e.message,true);}
-});
+ $('userList').innerHTML=state.users.map(u=>{
+  const count=ALL_PERMISSION_KEYS.filter(k=>u.permissions?.[k]).length;
+  return `<article class="item user-admin-card">
+   <div class="itemtop"><div><h3>${esc(u.display_name)}</h3><p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p></div><span class="pill">${roleName(u.role)}</span></div>
+   <p class="user-permission-summary">الصلاحيات المفعلة: <b>${count}</b> من ${ALL_PERMISSION_KEYS.length}</p>
+   <div class="itemactions">${(u.username.toLowerCase()==='admin'||u.id===state.user.id)?'<b>حساب محمي - لا يمكن تعديل الحساب الحالي</b>':`<button data-user-edit="${esc(u.id)}">لوحة الصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف الحساب':'تفعيل الحساب'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور</button><button class="reject" data-user-delete="${esc(u.id)}">حذف المستخدم</button>`}</div>
+  </article>`;
+ }).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';
+ document.querySelectorAll('[data-user-edit]').forEach(btn=>btn.onclick=()=>openUserPermissions(btn.dataset.userEdit));
+ document.querySelectorAll('[data-user-toggle]').forEach(btn=>btn.onclick=async()=>{try{await api('users/'+btn.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});message('تم تحديث حالة المستخدم');await refreshAll();}catch(e){message(e.message,true);}});
+ document.querySelectorAll('[data-user-reset]').forEach(btn=>btn.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+btn.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة');}catch(e){message(e.message,true);}});
+ document.querySelectorAll('[data-user-delete]').forEach(btn=>btn.onclick=async()=>{const target=state.users.find(u=>String(u.id)===btn.dataset.userDelete);if(!target||!confirm('تأكيد حذف المستخدم '+target.display_name+'؟ سيتم إلغاء دخوله مع الاحتفاظ بسجلاته.'))return;try{await api('users/'+encodeURIComponent(btn.dataset.userDelete),{method:'DELETE'});message('تم حذف المستخدم');await refreshAll();}catch(e){message(e.message,true);}});
 }
+async function openUserPermissions(id){
+ const u=state.users.find(x=>String(x.id)===String(id));if(!u)return;
+ try{
+  const [br,access]=await Promise.all([api('branches'),api('user-branches/'+encodeURIComponent(id))]);
+  $('editUserId').value=u.id;$('editUsername').value=u.username;$('editDisplayName').value=u.display_name;$('editUserRole').value=u.role;
+  const selected=new Set((access.branchIds||[]).map(Number));
+  $('editUserBranches').innerHTML=(br.branches||[]).map(x=>`<label class="permission-check"><input type="checkbox" name="branchAccess" value="${x.id}" ${selected.has(Number(x.id))?'checked':''}><span>${esc(x.name)} <small>(${esc(x.code)})</small></span></label>`).join('');
+  const p=u.permissions||{};
+  $('editUserPermissions').innerHTML=PERMISSION_GROUPS.map(g=>`<section class="permission-group"><h3>${g.title}</h3><div class="permission-grid">${g.items.map(([key,label])=>`<label class="permission-check"><input type="checkbox" name="permission" value="${key}" ${p[key]?'checked':''}><span>${label}</span></label>`).join('')}</div></section>`).join('');
+  $('userPermissionsModal').classList.remove('hidden');
+ }catch(e){message(e.message,true);}
+}
+$('closeUserPermissions')?.addEventListener('click',()=>$('userPermissionsModal').classList.add('hidden'));
+$('userPermissionsForm')?.addEventListener('submit',async e=>{
+ e.preventDefault();const id=$('editUserId').value;
+ const permissions=Object.fromEntries(ALL_PERMISSION_KEYS.map(k=>[k,false]));
+ document.querySelectorAll('#editUserPermissions input[name="permission"]:checked').forEach(x=>permissions[x.value]=true);
+ const branchIds=[...document.querySelectorAll('#editUserBranches input[name="branchAccess"]:checked')].map(x=>Number(x.value));
+ try{
+  await api('users/'+encodeURIComponent(id),{method:'PATCH',body:JSON.stringify({username:$('editUsername').value.trim(),displayName:$('editDisplayName').value.trim(),role:$('editUserRole').value,branchIds,permissions})});
+  $('userPermissionsModal').classList.add('hidden');message('تم حفظ الدور والصلاحيات بنجاح');await refreshAll();
+ }catch(err){message(err.message,true);}
+});
 
 async function loadReports(){
  const period=$('reportPeriod').value||currentPeriod();
