@@ -393,18 +393,56 @@ async function loadReports(){
   const statusLabel=s=>({pending:'معلق',approved:'معتمد',rejected:'مرفوض'}[s]||s);
   const branchTerm=branch.toLowerCase();
   $('balanceReportRows').innerHTML=(d.balances||[]).filter(x=>!branchTerm||(String(x.code)+' '+String(x.name)).toLowerCase().includes(branchTerm)).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${x.quota}</td><td>${x.transferred_in}</td><td>${x.transferred_out}</td><td>${x.used}</td><td>${x.available}</td></tr>`).join('')||'<tr><td colspan="7">لا توجد بيانات</td></tr>';
-  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.request_number||x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.invoice_date||'—')}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="13">لا توجد طلبات في الفترة المحددة</td></tr>';
+  $('requestReportRows').innerHTML=(d.requests||[]).map(x=>`<tr><td>${esc(x.request_number||x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.branch_code)}</td><td>${esc(x.branch_name)}</td><td>${esc(x.invoice_number)}</td><td>${esc(x.invoice_date||'—')}</td><td>${esc(x.customer_name)}</td><td>${esc(x.customer_phone)}</td><td>${esc(x.item_code)}</td><td>${esc(x.item_name)}</td><td>${money(x.amount)}</td><td>${esc(x.reason==='سبب آخر'?(x.other_reason||x.reason):x.reason)}</td><td>${statusLabel(x.status)}</td><td>${esc(x.creator_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decision_note)}</td></tr>`).join('')||'<tr><td colspan="17" class="empty-cell">لا توجد طلبات في الفترة المحددة</td></tr>';
   $('transferReportRows').innerHTML=(d.transfers||[]).map(x=>`<tr><td>${esc(x.id)}</td><td>${esc(x.period)}</td><td>${esc(x.from_code)} - ${esc(x.from_name)}</td><td>${esc(x.to_code)} - ${esc(x.to_name)}</td><td>${x.quantity}</td><td>${statusLabel(x.status)}</td><td>${esc(x.reason)}</td><td>${esc(x.requester_name)}</td><td>${esc(x.decision_maker)}</td><td>${esc(x.created_at)}</td><td>${esc(x.decided_at)}</td></tr>`).join('')||'<tr><td colspan="11">لا توجد تحويلات في الفترة المحددة</td></tr>';
  }catch(e){message(e.message,true)}
 }
 
-function exportReport(tableId,fileName){
+async function exportReport(tableId,fileName){
  const table=$(tableId);
  if(!table)return;
- const content='<!doctype html><html><head><meta charset="utf-8"></head><body dir="rtl">'+table.outerHTML+'</body></html>';
- const blob=new Blob(['\ufeff',content],{type:'application/vnd.ms-excel;charset=utf-8'});
+ if(!window.ExcelJS){message('مكتبة Excel غير متاحة. حدّث الصفحة وحاول مرة أخرى.',true);return;}
+ const workbook=new ExcelJS.Workbook();
+ workbook.creator='RANEEN - Returns';
+ workbook.created=new Date();
+ workbook.views=[{rightToLeft:true,activeTab:0}];
+ const sheet=workbook.addWorksheet('التقرير',{views:[{rightToLeft:true,state:'frozen',ySplit:1}]});
+ const rows=Array.from(table.querySelectorAll('tr')).map(tr=>Array.from(tr.cells).map(td=>(td.innerText||'').trim()));
+ if(!rows.length)return;
+ const header=rows[0];
+ sheet.addRow(header);
+ rows.slice(1).forEach(row=>sheet.addRow(row));
+ sheet.columns=header.map((title,index)=>({
+  header:title,
+  key:'c'+index,
+  width:Math.min(38,Math.max(14,...rows.map(row=>String(row[index]||'').length+3)))
+ }));
+ const head=sheet.getRow(1);
+ head.height=30;
+ head.eachCell(cell=>{
+  cell.font={name:'Arial',size:11,bold:true,color:{argb:'FFFFFFFF'}};
+  cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF123B70'}};
+  cell.alignment={horizontal:'center',vertical:'middle',wrapText:true};
+  cell.border={top:{style:'thin',color:{argb:'FFD7A642'}},bottom:{style:'medium',color:{argb:'FFD7A642'}},left:{style:'thin',color:{argb:'FFDCE5EF'}},right:{style:'thin',color:{argb:'FFDCE5EF'}}};
+ });
+ for(let r=2;r<=sheet.rowCount;r++){
+  const row=sheet.getRow(r);
+  row.height=24;
+  row.eachCell(cell=>{
+   cell.font={name:'Arial',size:10,color:{argb:'FF192B43'}};
+   cell.alignment={horizontal:'right',vertical:'middle',wrapText:true};
+   cell.border={bottom:{style:'hair',color:{argb:'FFDCE5EF'}},left:{style:'hair',color:{argb:'FFDCE5EF'}},right:{style:'hair',color:{argb:'FFDCE5EF'}}};
+   if(r%2===0)cell.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFF3F6FA'}};
+  });
+ }
+ sheet.autoFilter={from:{row:1,column:1},to:{row:1,column:header.length}};
+ sheet.pageSetup={orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9};
+ sheet.properties.defaultRowHeight=22;
+ const buffer=await workbook.xlsx.writeBuffer();
+ const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
  const url=URL.createObjectURL(blob);
- const a=document.createElement('a');a.href=url;a.download=fileName+'-'+($('reportPeriod').value||currentPeriod())+'.xls';document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+ const link=document.createElement('a');link.href=url;link.download=fileName+'-'+($('reportPeriod').value||currentPeriod())+'.xlsx';
+ document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
 function renderAudit(){
