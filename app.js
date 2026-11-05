@@ -410,12 +410,8 @@ const ALL_PERMISSION_KEYS=PERMISSION_GROUPS.flatMap(g=>g.items.map(x=>x[0]));
 function renderUsers(){
  $('userList').innerHTML=state.users.map(u=>{
   const count=ALL_PERMISSION_KEYS.filter(k=>u.permissions?.[k]).length;
-  return `<article class="item user-admin-card">
-   <div class="itemtop"><div><h3>${esc(u.display_name)}</h3><p>${esc(u.username)} • ${u.is_active?'نشط':'موقوف'}</p></div><span class="pill">${roleName(u.role)}</span></div>
-   <p class="user-permission-summary">الصلاحيات المفعلة: <b>${count}</b> من ${ALL_PERMISSION_KEYS.length}</p>
-   <div class="itemactions">${(u.username.toLowerCase()==='admin'||u.id===state.user.id)?'<b>حساب محمي - لا يمكن تعديل الحساب الحالي</b>':`<button data-user-edit="${esc(u.id)}">لوحة الصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف الحساب':'تفعيل الحساب'}</button><button data-user-reset="${esc(u.id)}">تعيين كلمة مرور</button><button class="reject" data-user-delete="${esc(u.id)}">حذف المستخدم</button>`}</div>
-  </article>`;
- }).join('')||'<div class="item">لا يوجد مستخدمون آخرون.</div>';
+  return `<tr><td>${esc(u.display_name)}</td><td>${esc(u.username)}</td><td>${roleName(u.role)}</td><td><span class="pill ${u.is_online?'approved':(u.is_active?'pending':'rejected')}">${u.is_online?'متصل الآن':(u.is_active?'غير متصل':'موقوف')}</span></td><td>${esc(formatAppDateTime(u.last_login_at)||'لم يسجل دخول')}</td><td>${esc(formatAppDateTime(u.last_seen_at)||'—')}</td><td><span class="user-permission-summary">${count} صلاحية</span> ${(u.username.toLowerCase()==='admin'||u.id===state.user.id)?'<b>حساب محمي</b>':`<button data-user-edit="${esc(u.id)}">الصلاحيات</button><button data-user-toggle="${esc(u.id)}">${u.is_active?'إيقاف':'تفعيل'}</button><button data-user-reset="${esc(u.id)}">كلمة مرور</button><button class="reject" data-user-delete="${esc(u.id)}">حذف</button>`}</td></tr>`;
+ }).join('')||'<tr><td colspan="7">لا يوجد مستخدمون آخرون.</td></tr>';
  document.querySelectorAll('[data-user-edit]').forEach(btn=>btn.onclick=()=>openUserPermissions(btn.dataset.userEdit));
  document.querySelectorAll('[data-user-toggle]').forEach(btn=>btn.onclick=async()=>{try{await api('users/'+btn.dataset.userToggle,{method:'PATCH',body:JSON.stringify({toggleActive:true})});message('تم تحديث حالة المستخدم');await refreshAll();}catch(e){message(e.message,true);}});
  document.querySelectorAll('[data-user-reset]').forEach(btn=>btn.onclick=async()=>{const p=prompt('أدخل كلمة مرور مؤقتة لا تقل عن 12 حرفًا:');if(!p)return;try{await api('users/'+btn.dataset.userReset,{method:'PATCH',body:JSON.stringify({resetPassword:true,temporaryPassword:p})});message('تم تعيين كلمة المرور المؤقتة');}catch(e){message(e.message,true);}});
@@ -511,16 +507,7 @@ async function exportReport(tableId,fileName){
 }
 
 function renderAudit(){
- $('auditList').innerHTML=state.audit.map(a=>`
-  <article class="item">
-   <div class="itemtop">
-    <h3>${esc(a.action)}</h3>
-    <span class="pill">${esc(a.display_name||'النظام')}</span>
-   </div>
-   <p>${esc(a.entity_type)} • ${esc(a.entity_id)}</p>
-   <p>${esc(formatAppDateTime(a.created_at))} • ${esc(a.details_json)}</p>
-  </article>
- `).join('')||'<div class="item">لا توجد حركات مسجلة.</div>';
+ $('auditRows').innerHTML=state.audit.map(a=>`<tr><td>${esc(formatAppDateTime(a.created_at))}</td><td>${esc(a.display_name||'النظام')}</td><td>${esc(a.action)}</td><td>${esc(a.entity_type||'—')}</td><td>${esc(a.entity_id||'—')}</td><td class="audit-details-cell">${esc(a.details_json||'—')}</td></tr>`).join('')||'<tr><td colspan="6">لا توجد حركات مسجلة.</td></tr>';
 }
 
 $('setupForm').addEventListener('submit',async e=>{
